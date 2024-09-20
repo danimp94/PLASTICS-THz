@@ -1,8 +1,8 @@
 # Experiment 0
 
 ## Description
-Test 01: 10s sweep without sample from 100 to 600 GHz
-Test 02: 10s sweep with recycled paper sample from 100 to 600 GHz
+Test_01_10s: 10s sweep without sample from 100 to 600 GHz
+Test_02_10s: 10s sweep with recycled paper sample from 100 to 600 GHz
 
 ## Date
 19/09/2024
@@ -20,6 +20,6 @@ Test 02: 10s sweep with recycled paper sample from 100 to 600 GHz
 ## Notes
 - It gets more data at the end of the recording as the shutdown is manually done
 
-## Contact
-- **Researcher**: Daniel Moreno
+## Performer Contact
+- **Researcher**: Daniel Moreno París
 - **Email**: danmoren@pa.uc3m.es
