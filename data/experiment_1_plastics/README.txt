@@ -5,12 +5,14 @@ Test_01: Sweep without sample
 Test_02: Sweep with sample A1 
 Test_03: Sweep with sample B1
 Test_04: Sweep with sample C1
+Test_05: Sweep with sample D1
 
  1.- 120s sweep from 100 to 200 GHz
  2.- 60s sweep from 210 to 600 GHz
 
 ## Date
 26/09/2024 (Test 01 to 04)
+27/09/2024 (Test 05 to
 
 ## Setup
 - **Equipment Used**: Spectroscopy setup with PCA and Schottky
