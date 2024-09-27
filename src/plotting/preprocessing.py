@@ -1,6 +1,6 @@
-import os
 import numpy as np
 import pandas as pd
+import os
 
 
 # Function to find the line number of the ***End_of_Header*** section
@@ -9,6 +9,7 @@ def find_header_end(file_path):
         for line_num, line in enumerate(file):
             if "***End_of_Header***" in line:
                 return line_num + 1  # Data starts immediately after the header
+    return None
 
 
 # Function to read LVM data (your custom function)
@@ -36,16 +37,16 @@ def read_lvm(file_path, start_line):
     return np.array(data) if data else np.array([])
 
 
-# Load the LVM file and identify where the data starts
-file_path = '../../data/experiment_1_plastics/test_04.1_test.lvm'
+# Main function to process the file
+def process_lvm_file(file_path):
+    # Find the line number where data starts (after ***End_of_Header***)
+    header_line = find_header_end(file_path)
 
-# Find the line number where data starts (after ***End_of_Header***)
-header_line = find_header_end(file_path)
+    # Check if header was found
+    if header_line is None:
+        print("Error: Could not find the ***End_of_Header*** marker in the file.")
+        return
 
-# Check if header was found
-if header_line is None:
-    print("Error: Could not find the ***End_of_Header*** marker in the file.")
-else:
     # Read the LVM data starting from the correct line
     data = read_lvm(file_path, header_line)
 
@@ -69,3 +70,11 @@ else:
         print(f"Data with headers saved to {new_file_path}")
     else:
         print("No data found to save.")
+
+# Main execution block
+if __name__ == "__main__":
+
+    # Load the LVM file and identify where the data starts
+    file_path = '../../data/experiment_1_plastics/test_04.1.lvm'
+    # Call the main processing function
+    process_lvm_file(file_path)
