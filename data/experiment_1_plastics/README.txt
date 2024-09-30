@@ -6,6 +6,7 @@ Test_02: Sweep with sample A1
 Test_03: Sweep with sample B1
 Test_04: Sweep with sample C1
 Test_05: Sweep with sample D1
+Test_06: Sweep with sample E1 (1 layer), E2 (2 layers) and E3 (1 layer)
 
  1.- 120s sweep from 100 to 200 GHz
  2.- 60s sweep from 210 to 600 GHz
@@ -22,8 +23,8 @@ Test_05: Sweep with sample D1
 	- B: PE/tie/EVOH/tie/PE (Admer AT1707E) (0.57mm)
 	- C: ABS+PC (2.05mm)
 	- D: ABS (3.0mm)
-	- E: Ecovio/PVOH/Ecovio
-	- F: PP/tie/EVOH/tie/PP (tupper)
+	- E: Ecovio/PVOH/Ecovio (0.1mm per layer)
+	- F: PP/tie/EVOH/tie/PP (tupper) (0.27-0.31mm)
 	- G: PHB/PVOH/Ecovio
 	- H: PP/tie/EVOH/tie/PP
 	- I: PS
