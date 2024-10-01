@@ -8,8 +8,10 @@ Test_04: Sweep with sample C1
 Test_05: Sweep with sample D1
 Test_06: Sweep with samples E1 (1 layer), E2 (2 layers) and E3 (1 layer)
 Test_07: Sweep with sample F1
-Test_08: Sweep with sample G1 (G2 and G3 samples available for consistency check, G2 --> 2x layer, G3 --> single layer)
+Test_08: Sweep with sample G1
 Test_09: Sweep with sample H1
+Test_10: Sweep with sample I1
+Test_11: Sweep with sample J1
 
  1.- 120s sweep from 100 to 200 GHz
  2.- 60s sweep from 210 to 600 GHz
@@ -17,7 +19,8 @@ Test_09: Sweep with sample H1
 ## Date
 26/09/2024 (Test 01 to 04)
 27/09/2024 (Test 05)
-30/09/2024 (Test 06 to 08) (24ºC, 31.0-32.0 %RH)
+30/09/2024 (Test 06 to 08) (24ºC, 31.0 %RH)
+01/10/2024 (Test 09 to ) (23ºC, 37.0 %RH)
 
 ## Setup
 - **Equipment Used**: Spectroscopy setup with PCA and Schottky
@@ -27,11 +30,11 @@ Test_09: Sweep with sample H1
 	- B: PE/tie/EVOH/tie/PE (Admer AT1707E) (0.57mm)
 	- C: ABS+PC (2.05mm)
 	- D: ABS (3.0mm)
-	- E: Ecovio/PVOH/Ecovio (0.1mm per layer)
+	- E: Ecovio/PVOH/Ecovio (0.1mm per layer) *Available E2 (2x layers) and E3 (1x layer)
 	- F: PP/tie/EVOH/tie/PP (tupper) (0.27-0.31mm)
-	- G: PHB/PVOH/Ecovio (0.11mm per layer)
-	- H: PP/tie/EVOH/tie/PP
-	- I: PS
+	- G: PHB/PVOH/Ecovio (0.1mm per layer) *Available G2 (2x layers) and G3 (1x layer)
+	- H: PP/tie/EVOH/tie/PP (0.07mm) *Available H2 (1x layer) **scratched
+	- I: PS (0.36mm) **wrinkled
 	- J: LDPE
 	- K: PC
 	- L: PVC
