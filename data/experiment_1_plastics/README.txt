@@ -17,8 +17,7 @@ Test_13: Sweep with sample L1
 Test_14: Sweep with sample M1
 Test_15: Sweep with sample N1
 
-
- 1.- 120s sweep from 100 to 200 GHz
+ 1.- 120s sweep from 100 to 210 GHz
  2.- 60s sweep from 210 to 600 GHz
 
 ## Date
@@ -26,7 +25,7 @@ Test_15: Sweep with sample N1
 27/09/2024 (Test 05)
 30/09/2024 (Test 06 to 08) (24ºC, 31.0 %RH)
 01/10/2024 (Test 09 to 10) (23ºC, 37.0 %RH)
-02/10/2024 (Test 11 to ) (25ºC, 49.0 %RH)
+02/10/2024 (Test 11 to 15) (25ºC, 49.0 %RH)
 
 ## Setup
 - **Equipment Used**: Spectroscopy setup with PCA and Schottky
@@ -42,10 +41,10 @@ Test_15: Sweep with sample N1
 	- H: PP/tie/EVOH/tie/PP (0.07mm) *Available H2 (1x layer) **scratched
 	- I: PS (0.36mm) **wrinkled
 	- J: LDPE (0.07mm) **wrinkled
-	- K: PC **half-section
-	- L: PVC **opaque; white; half-section
-	- M: PP carga
-	- N: PP
+	- K: PC (2.25mm) **half-section
+	- L: PVC (1.85mm) **opaque; white; half-section
+	- M: PP carga (0.04mm) **white, wrinkled
+	- N: PP (--mm) ** wrinkled
 
 - **Experiment Variables**: // Define the independent and dependent variables, and any controlled variables.
 
