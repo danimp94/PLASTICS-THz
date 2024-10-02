@@ -38,7 +38,7 @@ def read_lvm(file_path, start_line):
 
 
 # Main function to process the file
-def process_lvm_file(file_path):
+def process_lvm_file(file_path, output_path):
     # Find the line number where data starts (after ***End_of_Header***)
     header_line = find_header_end(file_path)
 
@@ -53,28 +53,37 @@ def process_lvm_file(file_path):
     # If data was successfully read, save it to a new file
     if data.size > 0:
         # Convert to a pandas DataFrame
-        df = pd.DataFrame(data, columns=['Column1',
-                                         'Column2',
-                                         'Column3',
-                                         'Column4',
-                                         'Column5',
-                                         'Column6',
-                                         'Column7'])
+        df = pd.DataFrame(data, columns=['Column1', 'Column2', 'Column3', 'Column4', 'Column5', 'Column6', 'Column7'])
 
-        # Save the data with headers to a new LVM file, appending "_proc" to the filename
-        new_file_path = os.path.splitext(file_path)[0] + '_proc.lvm'
+        # Write the DataFrame to the specified output file with tab-separated values and no index
+        df.to_csv(output_path, sep='\t', index=False)
 
-        # Write the DataFrame to a new file with tab-separated values and no index
-        df.to_csv(new_file_path, sep='\t', index=False)
-
-        print(f"Data with headers saved to {new_file_path}")
+        print(f"Data with headers saved to {output_path}")
     else:
         print("No data found to save.")
+
 
 # Main execution block
 if __name__ == "__main__":
 
-    # Load the LVM file and identify where the data starts
-    file_path = '../../data/experiment_1_plastics/test_04.1.lvm'
+    # Load the LVM file and define the output file path
+    input_dir = '../../data/experiment_1_plastics'
+    # input_file_path = '../../data/experiment_1_plastics/test_03.2.lvm'
+    output_dir = '../../data/experiment_1_plastics/clean'
+
+    # Create a "clean" directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Define the output file path
+    # output_file_path = os.path.join(output_dir, os.path.basename(input_file_path).replace('.lvm', '_proc.lvm'))
+
+    # Loop through all .lvm files in the input directory
+    for filename in os.listdir(input_dir):
+        if filename.endswith('.lvm'):
+            input_file_path = os.path.join(input_dir, filename)
+            output_file_path = os.path.join(output_dir, filename.replace('.lvm', '_proc.lvm'))
+
+            # Call the main processing function for each file
+            process_lvm_file(input_file_path, output_file_path)
     # Call the main processing function
-    process_lvm_file(file_path)
+    process_lvm_file(input_file_path, output_file_path)
