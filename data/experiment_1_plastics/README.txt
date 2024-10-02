@@ -12,6 +12,11 @@ Test_08: Sweep with sample G1
 Test_09: Sweep with sample H1
 Test_10: Sweep with sample I1
 Test_11: Sweep with sample J1
+Test_12: Sweep with sample K1
+Test_13: Sweep with sample L1
+Test_14: Sweep with sample M1
+Test_15: Sweep with sample N1
+
 
  1.- 120s sweep from 100 to 200 GHz
  2.- 60s sweep from 210 to 600 GHz
@@ -20,7 +25,8 @@ Test_11: Sweep with sample J1
 26/09/2024 (Test 01 to 04)
 27/09/2024 (Test 05)
 30/09/2024 (Test 06 to 08) (24ºC, 31.0 %RH)
-01/10/2024 (Test 09 to ) (23ºC, 37.0 %RH)
+01/10/2024 (Test 09 to 10) (23ºC, 37.0 %RH)
+02/10/2024 (Test 11 to ) (25ºC, 49.0 %RH)
 
 ## Setup
 - **Equipment Used**: Spectroscopy setup with PCA and Schottky
@@ -35,9 +41,9 @@ Test_11: Sweep with sample J1
 	- G: PHB/PVOH/Ecovio (0.1mm per layer) *Available G2 (2x layers) and G3 (1x layer)
 	- H: PP/tie/EVOH/tie/PP (0.07mm) *Available H2 (1x layer) **scratched
 	- I: PS (0.36mm) **wrinkled
-	- J: LDPE
-	- K: PC
-	- L: PVC
+	- J: LDPE (0.07mm) **wrinkled
+	- K: PC **half-section
+	- L: PVC **opaque; white; half-section
 	- M: PP carga
 	- N: PP
 
