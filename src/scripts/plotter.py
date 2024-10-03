@@ -181,6 +181,19 @@ def plot_data_overlay_average(data_files, channel_indices):
     plt.ylabel('Values (mV)')
     plt.title('Spectroscopy Sample Overlay (Averaged)')
     plt.legend()
+
+    # Save the plot
+    save_dir = os.path.join(os.path.dirname(data_files[0]), 'plots')
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    # Extract the base name of the first data file without extension
+    base_names = [os.path.splitext(os.path.basename(file_path))[0] for file_path in data_files]
+    base_name = "_".join(base_names)
+    save_path = os.path.join(save_dir, f'overlay_average_plot_{base_name}.png')
+    plt.savefig(save_path, dpi=300)  # Set DPI to 300 for HD quality
+    print(f"Averaged overlay plot saved as: {save_path}")
+
     plt.show()
 
 if __name__ == "__main__":
@@ -188,7 +201,7 @@ if __name__ == "__main__":
     # List of LVM files to be plotted
     processed_folder = '../../data/experiment_1_plastics/processed/'
     data_files = sorted([os.path.join(processed_folder, f) for f in os.listdir(processed_folder) if f.endswith('.csv')])
-    data_files = data_files[2:4] + [data_files[-1]] # Select files 3 and 4
+    # data_files = [data_files[4]] + [data_files[8]] + [data_files[6]] #+ [data_files[-1]] # Select files 3 and 4
 
     # Check if all files exist
     for file_path in data_files:
@@ -197,9 +210,9 @@ if __name__ == "__main__":
             exit(1)  # Exit if any file is not found
 
     # Define the channels to plot (0 for Frequency, 1 for LG, 2 for HG, etc.)
-    channels_to_plot = [1, 2]  # Adjust this list to select different channels
+    channels_to_plot = [2]  # Adjust this list to select different channels
 
-    # plot_data_heatmap(data_files, channels_to_plot, plot_together=False)
+    plot_data_heatmap(data_files, channels_to_plot, plot_together=True)
 
     # plot_data_overlay(data_files, channels_to_plot)
-    plot_data_overlay_average(data_files, channels_to_plot)
+    # plot_data_overlay_average(data_files, channels_to_plot)

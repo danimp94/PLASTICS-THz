@@ -207,7 +207,7 @@ if __name__ == "__main__":
                 sample_name = os.path.splitext(file)[0]  # Assuming the file name corresponds to the sample name
                 thickness_value = thickness_values.get(sample_name, None)
                 if thickness_value is not None:
-                    df['Thickness'] = thickness_value  # Add the new column with the thickness value
+                    df['Thickness (mm)'] = thickness_value  # Add the new column with the thickness value
                 else:
                     print(f"No thickness value defined for file: {file}")
                 output_file_path = os.path.join(output_dir, file)
