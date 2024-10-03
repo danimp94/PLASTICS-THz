@@ -20,12 +20,12 @@ def read_lvm(file_path, start_line):
         for i, line in enumerate(file):
             if i >= start_line:  # Skip lines until reaching the data section
                 # Debugging: Print the line being read
-                print(f"Reading line: {line.strip()}")
+                # print(f"Reading line: {line.strip()}")
                 try:
                     # Replace commas with periods and split by tab characters
                     line = line.replace(',', '.').strip()  # Ensure any extra spaces are removed
                     line_data = list(map(float, line.split('\t')))
-                    print(f"Parsed line data: {line_data}")  # Debugging: Print parsed data
+                    # print(f"Parsed line data: {line_data}")  # Debugging: Print parsed data
                     if len(line_data) == 7:  # Expecting exactly 7 columns
                         data.append(line_data)  # Append all 7 columns
                     else:
@@ -91,37 +91,52 @@ def discard_data(df, percentage, mode='last'):
         n = len(group)
         k = int(n * (percentage / 100))
         
-        if mode == 'first':
+        if mode == 'first': 
             return group.iloc[k:]
-        elif mode == 'last':
-            return group.iloc[:-k]
-        elif mode == 'random':
+        elif mode == 'last': 
+            return group.iloc[:-k] 
+        elif mode == 'random': 
             return group.sample(frac=(1 - percentage / 100))
         else:
             raise ValueError("Mode must be 'first', 'last', or 'random'.")
     
     return df.groupby('Frequency (GHz)').apply(discard_group).reset_index(drop=True)
-
+  
+def concatenate_csv_files(file1, file2, output_file):
+    # Read the CSV files
+    df1 = pd.read_csv(file1, delimiter=';')
+    df2 = pd.read_csv(file2, delimiter=';')
+    
+    # Concatenate the DataFrames
+    concatenated_df = pd.concat([df1, df2])
+    
+    # Write the concatenated DataFrame to a new CSV file
+    concatenated_df.to_csv(output_file, index=False, sep=';')
 
 
 # Main execution block
 if __name__ == "__main__":
 
-    # Load the LVM file and define the output file path
-    input_file_path = '../../data/experiment_1_plastics/test_03.1.lvm'
-
     # Define the output directory
-    output_dir = '../../data/experiment_1_plastics/clean'
+    output_dir = '../../data/experiment_1_plastics/processed/conc'
 
-    # Create a "clean" directory if it doesn't exist
+    # Create a "processed" directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
-    # Define the output file path
-    output_file_path = os.path.join(output_dir, os.path.basename(input_file_path).replace('.lvm', '.csv'))
+    # # SINGLE FILE PROCESSING
+    # # Load the LVM file and define the output file path
+    # input_file_path = '../../data/experiment_1_plastics/test_03.1.lvm'
+
+    # # Define the output file path
+    # output_file_path = os.path.join(output_dir, os.path.basename(input_file_path).replace('.lvm', '.csv'))
+
+    # # Call the main processing function
+    # process_lvm_file(input_file_path, output_file_path, discard_percentage = 50, discard_mode='first')
 
     # # Define the input directory
-    # input_dir = '../../data/experiment_1_plastics'
+    # input_dir = '../../data/experiment_1_plastics/raw'
 
+    # # # FILE PROCESSING (Discarding and converting to CSV)
     # # Loop through all .lvm files in the input directory
     # for filename in os.listdir(input_dir):
     #     if filename.endswith('.lvm'):
@@ -129,6 +144,23 @@ if __name__ == "__main__":
     #         output_file_path = os.path.join(output_dir, filename.replace('.lvm', '.csv'))
 
     #         # Call the main processing function for each file
-    #         process_lvm_file(input_file_path, output_file_path)
-    # Call the main processing function
-    process_lvm_file(input_file_path, output_file_path, discard_percentage = 0, discard_mode='last')
+    #         process_lvm_file(input_file_path, output_file_path, discard_percentage = 75, discard_mode='first')
+
+
+    # # FILE CONTATENATION
+    input_dir = '../../data/experiment_1_plastics/processed'
+
+    # Get all CSV files in the input directory
+    all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
+
+    # Loop through the files in pairs
+    for i in range(0, len(all_files), 2):
+        if i + 1 < len(all_files):
+            file1 = os.path.join(input_dir, all_files[i])
+            file2 = os.path.join(input_dir, all_files[i + 1])
+            base_name = all_files[i][:-6]  # Remove '.csv' and the last digit
+            concatenated_file = os.path.join(output_dir, f"{base_name}_{i//2}.csv")
+
+            # Concatenate the CSV files
+            concatenate_csv_files(file1, file2, concatenated_file)
+
