@@ -165,18 +165,54 @@ if __name__ == "__main__":
     #         concatenate_csv_files(file1, file2, concatenated_file)
 
     # # REMOVE THE LAST 4 COLUMNS FOR EACH FILE
-    input_dir = '../../data/experiment_1_plastics/processed/'
+    # input_dir = '../../data/experiment_1_plastics/processed/'
 
-    for file in os.listdir(input_dir):
-        if file.endswith('.csv'):
-            file_path = os.path.join(input_dir, file)
-            print(f"Processing file: {file_path}")  # Debugging line
-            try:
-                df = pd.read_csv(file_path, delimiter=';')
-                df = df.iloc[:, :-4]  # Remove the last 4 columns
-                output_file_path = os.path.join(output_dir, file)
-                df.to_csv(output_file_path, sep=';', index=False)
-            except FileNotFoundError as e:
-                print(f"File not found: {e}")
-            except Exception as e:
-                print(f"An error occurred: {e}")
+    # for file in os.listdir(input_dir):
+    #     if file.endswith('.csv'):
+    #         file_path = os.path.join(input_dir, file)
+    #         print(f"Processing file: {file_path}")  # Debugging line
+    #         try:
+    #             df = pd.read_csv(file_path, delimiter=';')
+    #             df = df.iloc[:, :-4]  # Remove the last 4 columns
+    #             output_file_path = os.path.join(output_dir, file)
+    #             df.to_csv(output_file_path, sep=';', index=False)
+    #         except FileNotFoundError as e:
+    #             print(f"File not found: {e}")
+    #         except Exception as e:
+    #             print(f"An error occurred: {e}")
+
+
+    # # ADD A NEW COLUMN WITH EXTRA VALUES
+    input_dir = '../../data/experiment_1_plastics/processed/'
+output_dir = '../../data/experiment_1_plastics/processed/conc'
+characteristics_file = '../../data/experiment_1_plastics/characteristics.csv'
+
+# Read the characteristics file to get thickness values
+try:
+    characteristics_df = pd.read_csv(characteristics_file, delimiter=';', encoding='utf-8-sig')  # Handle BOM and specify correct delimiter
+    print("Column names in characteristics file:", characteristics_df.columns)  # Debugging line to print column names
+    characteristics_df.columns = characteristics_df.columns.str.strip()  # Remove any leading/trailing spaces
+    thickness_values = dict(zip(characteristics_df['sample'], characteristics_df['thickness']))
+except Exception as e:
+    print(f"An error occurred while reading the characteristics file: {e}")
+    exit(1)
+
+# Process each file in the input directory
+for file in os.listdir(input_dir):
+    if file.endswith('.csv'):
+        file_path = os.path.join(input_dir, file)
+        print(f"Processing file: {file_path}")  # Debugging line
+        try:
+            df = pd.read_csv(file_path, delimiter=';')
+            sample_name = os.path.splitext(file)[0]  # Assuming the file name corresponds to the sample name
+            thickness_value = thickness_values.get(sample_name, None)
+            if thickness_value is not None:
+                df['Thickness'] = thickness_value  # Add the new column with the thickness value
+            else:
+                print(f"No thickness value defined for file: {file}")
+            output_file_path = os.path.join(output_dir, file)
+            df.to_csv(output_file_path, sep=';', index=False)
+        except FileNotFoundError as e:
+            print(f"File not found: {e}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
