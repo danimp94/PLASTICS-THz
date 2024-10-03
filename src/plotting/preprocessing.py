@@ -148,19 +148,35 @@ if __name__ == "__main__":
 
 
     # # FILE CONTATENATION
-    input_dir = '../../data/experiment_1_plastics/processed'
+    # input_dir = '../../data/experiment_1_plastics/processed'
 
-    # Get all CSV files in the input directory
-    all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
+    # # Get all CSV files in the input directory
+    # all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
 
-    # Loop through the files in pairs
-    for i in range(0, len(all_files), 2):
-        if i + 1 < len(all_files):
-            file1 = os.path.join(input_dir, all_files[i])
-            file2 = os.path.join(input_dir, all_files[i + 1])
-            base_name = all_files[i][:-6]  # Remove '.csv' and the last digit
-            concatenated_file = os.path.join(output_dir, f"{base_name}_{i//2}.csv")
+    # # Loop through the files in pairs
+    # for i in range(0, len(all_files), 2):
+    #     if i + 1 < len(all_files):
+    #         file1 = os.path.join(input_dir, all_files[i])
+    #         file2 = os.path.join(input_dir, all_files[i + 1])
+    #         base_name = all_files[i][:-6]  # Remove '.csv' and the last digit
+    #         concatenated_file = os.path.join(output_dir, f"{base_name}_{i//2}.csv")
 
-            # Concatenate the CSV files
-            concatenate_csv_files(file1, file2, concatenated_file)
+    #         # Concatenate the CSV files
+    #         concatenate_csv_files(file1, file2, concatenated_file)
 
+    # # REMOVE THE LAST 4 COLUMNS FOR EACH FILE
+    input_dir = '../../data/experiment_1_plastics/processed/'
+
+    for file in os.listdir(input_dir):
+        if file.endswith('.csv'):
+            file_path = os.path.join(input_dir, file)
+            print(f"Processing file: {file_path}")  # Debugging line
+            try:
+                df = pd.read_csv(file_path, delimiter=';')
+                df = df.iloc[:, :-4]  # Remove the last 4 columns
+                output_file_path = os.path.join(output_dir, file)
+                df.to_csv(output_file_path, sep=';', index=False)
+            except FileNotFoundError as e:
+                print(f"File not found: {e}")
+            except Exception as e:
+                print(f"An error occurred: {e}")
