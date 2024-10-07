@@ -83,8 +83,6 @@
 #     main()
 
 
-
-
 import os
 import pandas as pd
 from sklearn.cluster import KMeans
@@ -94,12 +92,12 @@ import seaborn as sns
 
 def compute_features(df):
     """Compute summary statistics for HG and LG columns in the DataFrame."""
-    if 'HG (mV) mean' in df.columns and 'LG (mV) mean' in df.columns:
+    if 'HG (mV) mean' in df.columns and 'LG (mV) mean' in df.columns and 'Thickness (mm)' in df.columns:
         # Group by 'Sample' and compute mean and std for each group
         grouped = df.groupby('Sample').agg(
             HG_mean=('HG (mV) mean', 'mean'), HG_std=('HG (mV) std', 'mean'),
             LG_mean=('LG (mV) mean', 'mean'), LG_std=('LG (mV) std', 'mean'),
-            Frequency=('Frequency (GHz)', 'mean')
+            Thickness=('Thickness (mm)', 'mean')
         ).reset_index()
         
         return grouped
@@ -129,22 +127,22 @@ def cluster_file(file_path, output_directory, n_clusters=3):
 
     # Perform clustering on the feature vectors
     kmeans = KMeans(n_clusters=n_clusters, max_iter=10)
-    features_df['cluster'] = kmeans.fit_predict(features_df[['HG_mean', 'HG_std', 'LG_mean', 'LG_std', 'Frequency']])
+    features_df['cluster'] = kmeans.fit_predict(features_df[['HG_mean', 'HG_std', 'LG_mean', 'LG_std', 'Thickness']])
 
     # Plot the clusters in 3D
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
-    scatter = ax.scatter(features_df['HG_mean'], features_df['HG_std'], features_df['Frequency'], c=features_df['cluster'], cmap='viridis', s=100)
+    scatter = ax.scatter(features_df['HG_mean'], features_df['HG_std'], features_df['Thickness'], c=features_df['cluster'], cmap='viridis', s=100)
 
     # Annotate each point with the sample name
     for i in range(features_df.shape[0]):
-        ax.text(features_df['HG_mean'][i], features_df['HG_std'][i], features_df['Frequency'][i], features_df['Sample'][i], 
+        ax.text(features_df['HG_mean'][i], features_df['HG_std'][i], features_df['Thickness'][i], features_df['Sample'][i], 
                 horizontalalignment='left', size='medium', color='black', weight='semibold')
 
-    ax.set_title('Cluster of Samples Based on HG, LG, and Frequency')
+    ax.set_title('Cluster of Samples Based on HG, LG, and Thickness')
     ax.set_xlabel('Mean HG (mV)')
     ax.set_ylabel('Standard Deviation HG (mV)')
-    ax.set_zlabel('Frequency (GHz)')
+    ax.set_zlabel('Thickness (mm)')
     plt.colorbar(scatter, ax=ax, label='Cluster')
     plt.show()
 
