@@ -144,9 +144,6 @@ def average_and_std_deviation(input_file, output_file):
         
         # Group by 'Sample' and 'Frequency (GHz)', then calculate mean and std deviation for 'HG (mV)' and 'LG (mV)'
         result = df.groupby(['Sample', 'Frequency (GHz)'])[['HG (mV)', 'LG (mV)']].agg(['mean', 'std']).reset_index()
-        if 'Thickness (mm)' in df.columns:
-            thickness_df = df[['Sample', 'Thickness (mm)']].drop_duplicates(subset=['Sample'])
-            result = result.merge(thickness_df, on='Sample', how='right')
         
         # Flatten the MultiIndex columns
         result.columns = [' '.join(col).strip() for col in result.columns.values]
@@ -154,7 +151,7 @@ def average_and_std_deviation(input_file, output_file):
         # Merge the thickness values back into the result
         if 'Thickness (mm)' in df.columns:
             thickness_df = df[['Sample', 'Thickness (mm)']].drop_duplicates(subset=['Sample'])
-            result = result.merge(thickness_df, on='Sample', how='right')
+            result = result.merge(thickness_df, on='Sample', how='left')
         
         # Save the result to a new CSV file
         result.to_csv(output_file, sep=';', index=False)
