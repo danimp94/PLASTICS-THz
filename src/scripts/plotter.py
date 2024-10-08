@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
+import mplcursors
 
 def read_lvm(file_path):
     data = []
@@ -172,15 +173,37 @@ def plot_transmittance(file_path, selected_samples=None):
 
         # Plot the data
         plt.figure(figsize=(16, 12))
+        lines = []
         for sample in selected_samples:
             sample_df = filtered_df[filtered_df['Sample'] == sample]
-            plt.plot(sample_df['Frequency (GHz)'], sample_df['HG (mV) mean Transmittance'], label=f'{sample} HG Transmittance', linestyle='-', marker='o')
-            plt.plot(sample_df['Frequency (GHz)'], sample_df['LG (mV) mean Transmittance'], label=f'{sample} LG Transmittance', linestyle='--', marker='x')
+            line1, = plt.plot(sample_df['Frequency (GHz)'], sample_df['HG (mV) mean Transmittance'], label=f'{sample} HG Transmittance', linestyle='-', marker='o')
+            line2, = plt.plot(sample_df['Frequency (GHz)'], sample_df['LG (mV) mean Transmittance'], label=f'{sample} LG Transmittance', linestyle='--', marker='x')
+            lines.extend([line1, line2])
 
+        # Add labels, legend, and grid
         plt.xlabel('Frequency (GHz)')
         plt.ylabel('Transmittance Ratio')
         plt.title('Transmittance vs Frequency')
-        plt.legend()
+        legend = plt.legend()
+        plt.grid(True)
+
+        # Add interactive legend
+        lined = {legline: origline for legline, origline in zip(legend.get_lines(), lines)}
+        def on_pick(event):
+            legline = event.artist
+            origline = lined[legline]
+            visible = not origline.get_visible()
+            origline.set_visible(visible)
+            legline.set_alpha(1.0 if visible else 0.2)
+            plt.draw()
+
+        plt.gcf().canvas.mpl_connect('pick_event', on_pick)
+        for legline in legend.get_lines():
+            legline.set_picker(True)
+
+        # Add interactive cursor
+        cursor = mplcursors.cursor(lines, hover=True)
+        cursor.connect("add", lambda sel: sel.annotation.set_text(sel.artist.get_label()))
 
         # Save the plot
         save_dir = os.path.join(os.path.dirname(file_path), 'plots')
@@ -198,7 +221,6 @@ def plot_transmittance(file_path, selected_samples=None):
         print(f"File not found: {e}")
     except Exception as e:
         print(f"An error occurred: {e}")
-
 
 def main():
     parser = argparse.ArgumentParser(description="Plot spectroscopy data.")
@@ -236,21 +258,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    # input_file_path = '../../data/experiment_1_plastics/processed/result/transmittance_results.csv'
-    # plot_transmittance(input_file_path)
-
-# # Input file path
-#  ../../data/experiment_1_plastics/processed/merged_averages_std_dev.csv
-
-# # Input directory
-#  ../../data/experiment_1_plastics/processed/
-
-# # Output file path
-#  ../../data/experiment_1_plastics/processed/plots/
-
-# # Example commands
-# py plotter.py heatmap ../../data/experiment_1_plastics/processed/*.csv 2 --plot_together
-# py plotter.py overlay ../../data/experiment_1_plastics/processed/*.csv 2
-# py plotter.py overlay_avg ../../data/experiment_1_plastics/processed/*.csv 2
-# py plotter.py plot_transmittance ../../data/experiment_1_plastics/processed/result/transmittance_results.csv A1 B1 C1
