@@ -280,7 +280,6 @@ def calculate_transmittance(input_file, output_dir):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
 def main():
     parser = argparse.ArgumentParser(description="Process spectroscopy data.")
     subparsers = parser.add_subparsers(dest="command")
