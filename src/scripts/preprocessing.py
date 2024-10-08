@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
 import os
+import argparse
+
+
 
 
 # Function to find the line number of the ***End_of_Header*** section
@@ -113,7 +116,7 @@ def concatenate_csv_files(file1, file2, output_file):
     # Write the concatenated DataFrame to a new CSV file
     concatenated_df.to_csv(output_file, index=False, sep=';')
 
-def merge_files_with_filename(input_dir, output_file):
+def merge_files(input_dir, output_file):
     all_data = []
 
     # Process each file in the input directory
@@ -137,7 +140,7 @@ def merge_files_with_filename(input_dir, output_file):
     merged_df.to_csv(output_file, sep=';', index=False)
     print(f"Merged file saved to: {output_file}")
 
-def average_and_std_deviation(input_file, output_file):
+def calculate_averages(input_file, output_file):
     try:
         # Read the merged data file
         df = pd.read_csv(input_file, delimiter=';')
@@ -161,123 +164,197 @@ def average_and_std_deviation(input_file, output_file):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-# Main execution block
+def process_single_file(input_file_path, output_dir):
+    output_file_path = os.path.join(output_dir, os.path.basename(input_file_path).replace('.lvm', '.csv'))
+    process_lvm_file(input_file_path, output_file_path, discard_percentage=50, discard_mode='first')
+
+def process_files(input_dir, output_dir):
+    for filename in os.listdir(input_dir):
+        if filename.endswith('.lvm'):
+            input_file_path = os.path.join(input_dir, filename)
+            output_file_path = os.path.join(output_dir, filename.replace('.lvm', '.csv'))
+            process_lvm_file(input_file_path, output_file_path, discard_percentage=75, discard_mode='first')
+
+def concatenate_pair_files(input_dir, output_dir):
+    all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
+    for i in range(0, len(all_files), 2):
+        if i + 1 < len(all_files):
+            file1 = os.path.join(input_dir, all_files[i])
+            file2 = os.path.join(input_dir, all_files[i + 1])
+            base_name = all_files[i][:-6]
+            concatenated_file = os.path.join(output_dir, f"{base_name}_{i//2}.csv")
+            concatenate_csv_files(file1, file2, concatenated_file)
+
+def remove_columns(input_dir, output_dir, num_columns, position='last', specific_positions=None):
+    """
+    Remove a specified number of columns from CSV files in a directory.
+
+    Parameters:
+    input_dir (str): Directory containing CSV files.
+    output_dir (str): Directory to save the modified CSV files.
+    num_columns (int): Number of columns to remove.
+    position (str): Position of columns to remove ('first', 'last', or 'specific').
+    specific_positions (list): List of specific column indices to remove (only used if position is 'specific').
+    """
+    for file in os.listdir(input_dir):
+        if file.endswith('.csv'):
+            file_path = os.path.join(input_dir, file)
+            print(f"Processing file: {file_path}")
+            try:
+                df = pd.read_csv(file_path, delimiter=';')
+                if position == 'last':
+                    df = df.iloc[:, :-num_columns]
+                elif position == 'first':
+                    df = df.iloc[:, num_columns:]
+                elif position == 'specific':
+                    if specific_positions is None:
+                        raise ValueError("specific_positions must be provided when position is 'specific'.")
+                    df = df.drop(df.columns[specific_positions], axis=1)
+                else:
+                    raise ValueError("Position must be 'first', 'last', or 'specific'.")
+                output_file_path = os.path.join(output_dir, file)
+                df.to_csv(output_file_path, sep=';', index=False)
+            except FileNotFoundError as e:
+                print(f"File not found: {e}")
+            except Exception as e:
+                print(f"An error occurred: {e}")
+
+def add_thickness_column(input_dir, output_dir, characteristics_file):
+    try:
+        characteristics_df = pd.read_csv(characteristics_file, delimiter=';', encoding='utf-8-sig')
+        characteristics_df.columns = characteristics_df.columns.str.strip()
+        thickness_values = dict(zip(characteristics_df['sample'], characteristics_df['thickness']))
+    except Exception as e:
+        print(f"An error occurred while reading the characteristics file: {e}")
+        return
+
+    for file in os.listdir(input_dir):
+        if file.endswith('.csv'):
+            file_path = os.path.join(input_dir, file)
+            print(f"Processing file: {file_path}")
+            try:
+                df = pd.read_csv(file_path, delimiter=';')
+                sample_name = os.path.splitext(file)[0]
+                thickness_value = thickness_values.get(sample_name, None)
+                if thickness_value is not None:
+                    df['Thickness (mm)'] = thickness_value
+                else:
+                    print(f"No thickness value defined for file: {file}")
+                output_file_path = os.path.join(output_dir, file)
+                df.to_csv(output_file_path, sep=';', index=False)
+            except FileNotFoundError as e:
+                print(f"File not found: {e}")
+            except Exception as e:
+                print(f"An error occurred: {e}")
+
+def calculate_transmittance(input_file, output_dir):
+    try:
+        # Read the data file
+        df = pd.read_csv(input_file, delimiter=';')
+
+        # Ensure the 'Sample' column is treated as a string
+        df['Sample'] = df['Sample'].astype(str)
+
+        # Separate the REF sample data
+        ref_df = df[df['Sample'] == 'REF']
+
+        # Merge the REF data back into the main DataFrame on 'Frequency (GHz)'
+        merged_df = df.merge(ref_df, on='Frequency (GHz)', suffixes=('', '_REF'))
+
+        # Calculate the transmittance for HG and LG mean values
+        merged_df['HG (mV) mean Transmittance'] = merged_df['HG (mV) mean'] / merged_df['HG (mV) mean_REF']
+        merged_df['LG (mV) mean Transmittance'] = merged_df['LG (mV) mean'] / merged_df['LG (mV) mean_REF']
+
+        # Drop the REF columns used for calculation
+        merged_df = merged_df.drop(columns=[col for col in merged_df.columns if col.endswith('_REF')])
+
+        # Construct the output file path
+        output_file = os.path.join(output_dir, 'transmittance_results.csv')
+
+        # Save the result to a new CSV file
+        merged_df.to_csv(output_file, sep=';', index=False)
+        print(f"Processed file saved to: {output_file}")
+
+    except FileNotFoundError as e:
+        print(f"File not found: {e}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Process spectroscopy data.")
+    subparsers = parser.add_subparsers(dest="command")
+
+    # Subparser for processing a single file
+    parser_single = subparsers.add_parser("process_single", help="Process a single LVM file")
+    parser_single.add_argument("input_file", help="Path to the input LVM file")
+    parser_single.add_argument("output_dir", help="Directory to save the processed CSV file")
+
+    # Subparser for processing multiple files
+    parser_multiple = subparsers.add_parser("process_multiple", help="Process multiple LVM files")
+    parser_multiple.add_argument("input_dir", help="Directory containing LVM files")
+    parser_multiple.add_argument("output_dir", help="Directory to save the processed CSV files")
+
+    # Subparser for concatenating files
+    parser_concat = subparsers.add_parser("concatenate", help="Concatenate CSV files")
+    parser_concat.add_argument("input_dir", help="Directory containing CSV files")
+    parser_concat.add_argument("output_dir", help="Directory to save the concatenated CSV files")
+
+    # Subparser for removing last columns
+    parser_remove = subparsers.add_parser("remove_columns", help="Remove the last 4 columns from CSV files")
+    parser_remove.add_argument("input_dir", help="Directory containing CSV files")
+    parser_remove.add_argument("output_dir", help="Directory to save the modified CSV files")
+
+    # Subparser for adding thickness column
+    parser_thickness = subparsers.add_parser("add_thickness", help="Add thickness column to CSV files")
+    parser_thickness.add_argument("input_dir", help="Directory containing CSV files")
+    parser_thickness.add_argument("output_dir", help="Directory to save the modified CSV files")
+    parser_thickness.add_argument("characteristics_file", help="Path to the characteristics CSV file")
+
+    # Subparser for merging files
+    parser_merge = subparsers.add_parser("merge", help="Merge all CSV files in a directory")
+    parser_merge.add_argument("input_dir", help="Directory containing CSV files")
+    parser_merge.add_argument("output_file", help="Path to save the merged CSV file")
+
+    # Subparser for calculating averages and standard deviations
+    parser_avg = subparsers.add_parser("calculate_averages", help="Calculate averages and standard deviations")
+    parser_avg.add_argument("input_file", help="Path to the input CSV file")
+    parser_avg.add_argument("output_file", help="Path to save the output CSV file")
+
+    # Subparser for calculating transmittance
+    parser_transmittance = subparsers.add_parser("calculate_transmittance", help="Calculate transmittance")
+    parser_transmittance.add_argument("input_file", help="Path to the input CSV file")
+    parser_transmittance.add_argument("output_dir", help="Path to save the output CSV file")
+
+    args = parser.parse_args()
+
+    if args.command == "process_single":
+        process_single_file(args.input_file, args.output_dir)
+    elif args.command == "process_multiple":
+        process_files(args.input_dir, args.output_dir)
+    elif args.command == "concatenate":
+        concatenate_pair_files(args.input_dir, args.output_dir)
+    elif args.command == "remove_columns":
+        remove_columns(args.input_dir, args.output_dir)
+    elif args.command == "add_thickness":
+        add_thickness_column(args.input_dir, args.output_dir, args.characteristics_file)
+    elif args.command == "merge":
+        merge_files(args.input_dir, args.output_file)
+    elif args.command == "calculate_averages":
+        calculate_averages(args.input_file, args.output_file)
+    elif args.command == "calculate_transmittance":
+        calculate_transmittance(args.input_file, args.output_dir)
+    else:
+        parser.print_help()
+
 if __name__ == "__main__":
+    main()
 
-    # Define the output directory
-    # output_dir = '../../data/experiment_1_plastics/processed/conc'
+# # Input file path
+#  ../../data/experiment_1_plastics/processed/merged_averages_std_dev.csv
 
-    # # Create a "processed" directory if it doesn't exist
-    # os.makedirs(output_dir, exist_ok=True)
+# # Input directory
+#  ../../data/experiment_1_plastics/processed/
 
-    # # SINGLE FILE PROCESSING
-    # # Load the LVM file and define the output file path
-    # input_file_path = '../../data/experiment_1_plastics/test_03.1.lvm'
-
-    # # Define the output file path
-    # output_file_path = os.path.join(output_dir, os.path.basename(input_file_path).replace('.lvm', '.csv'))
-
-    # # Call the main processing function
-    # process_lvm_file(input_file_path, output_file_path, discard_percentage = 50, discard_mode='first')
-
-    # # Define the input directory
-    # input_dir = '../../data/experiment_1_plastics/raw'
-
-    # # # FILE PROCESSING (Discarding and converting to CSV)
-    # # Loop through all .lvm files in the input directory
-    # for filename in os.listdir(input_dir):
-    #     if filename.endswith('.lvm'):
-    #         input_file_path = os.path.join(input_dir, filename)
-    #         output_file_path = os.path.join(output_dir, filename.replace('.lvm', '.csv'))
-
-    #         # Call the main processing function for each file
-    #         process_lvm_file(input_file_path, output_file_path, discard_percentage = 75, discard_mode='first')
-
-
-    # # FILE CONTATENATION
-    # input_dir = '../../data/experiment_1_plastics/processed'
-
-    # # Get all CSV files in the input directory
-    # all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
-
-    # # Loop through the files in pairs
-    # for i in range(0, len(all_files), 2):
-    #     if i + 1 < len(all_files):
-    #         file1 = os.path.join(input_dir, all_files[i])
-    #         file2 = os.path.join(input_dir, all_files[i + 1])
-    #         base_name = all_files[i][:-6]  # Remove '.csv' and the last digit
-    #         concatenated_file = os.path.join(output_dir, f"{base_name}_{i//2}.csv")
-
-    #         # Concatenate the CSV files
-    #         concatenate_csv_files(file1, file2, concatenated_file)
-
-    # # REMOVE THE LAST 4 COLUMNS FOR EACH FILE
-    # input_dir = '../../data/experiment_1_plastics/processed/'
-
-    # for file in os.listdir(input_dir):
-    #     if file.endswith('.csv'):
-    #         file_path = os.path.join(input_dir, file)
-    #         print(f"Processing file: {file_path}")  # Debugging line
-    #         try:
-    #             df = pd.read_csv(file_path, delimiter=';')
-    #             df = df.iloc[:, :-4]  # Remove the last 4 columns
-    #             output_file_path = os.path.join(output_dir, file)
-    #             df.to_csv(output_file_path, sep=';', index=False)
-    #         except FileNotFoundError as e:
-    #             print(f"File not found: {e}")
-    #         except Exception as e:
-    #             print(f"An error occurred: {e}")
-
-
-    # # # ADD A NEW COLUMN WITH EXTRA VALUES
-    # input_dir = '../../data/experiment_1_plastics/processed/'
-    # output_dir = '../../data/experiment_1_plastics/processed/conc'
-    # characteristics_file = '../../data/experiment_1_plastics/characteristics.csv'
-
-    # # Read the characteristics file to get thickness values
-    # try:
-    #     characteristics_df = pd.read_csv(characteristics_file, delimiter=';', encoding='utf-8-sig')  # Handle BOM and specify correct delimiter
-    #     print("Column names in characteristics file:", characteristics_df.columns)  # Debugging line to print column names
-    #     characteristics_df.columns = characteristics_df.columns.str.strip()  # Remove any leading/trailing spaces
-    #     thickness_values = dict(zip(characteristics_df['sample'], characteristics_df['thickness']))
-    # except Exception as e:
-    #     print(f"An error occurred while reading the characteristics file: {e}")
-    #     exit(1)
-
-    # # Process each file in the input directory
-    # for file in os.listdir(input_dir):
-    #     if file.endswith('.csv'):
-    #         file_path = os.path.join(input_dir, file)
-    #         print(f"Processing file: {file_path}")  # Debugging line
-    #         try:
-    #             df = pd.read_csv(file_path, delimiter=';')
-    #             sample_name = os.path.splitext(file)[0]  # Assuming the file name corresponds to the sample name
-    #             thickness_value = thickness_values.get(sample_name, None)
-    #             if thickness_value is not None:
-    #                 df['Thickness (mm)'] = thickness_value  # Add the new column with the thickness value
-    #             else:
-    #                 print(f"No thickness value defined for file: {file}")
-    #             output_file_path = os.path.join(output_dir, file)
-    #             df.to_csv(output_file_path, sep=';', index=False)
-    #         except FileNotFoundError as e:
-    #             print(f"File not found: {e}")
-    #         except Exception as e:
-    #             print(f"An error occurred: {e}")
-
-
-    # # MERGE ALL FILES IN THE INPUT DIRECTORY
-    # input_dir = '../../data/experiment_1_plastics/processed/'
-    # output_dir = '../../data/experiment_1_plastics/processed/'
-
-    # # Merge all files in the input directory
-    # merge_files_with_filename(input_dir, os.path.join(output_dir, 'merged_data.csv'))
-
-
-
-    # # CALCULATE THE AVERAGE AND STANDARD DEVIATION FOR EACH FREQUENCY
-    input_file = '../../data/experiment_1_plastics/processed/merged_data.csv'
-    output_file = '../../data/experiment_1_plastics/processed/merged_averages_std_dev.csv'
-
-    # Calculate the average and standard deviation for each frequency
-
-    average_and_std_deviation(input_file, output_file)
+# # Output file path
+#  ../../data/experiment_1_plastics/processed/result/
