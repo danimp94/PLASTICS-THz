@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 import mplcursors
+from matplotlib.widgets import Button
 
 def read_lvm(file_path):
     data = []
@@ -205,6 +206,15 @@ def plot_transmittance(file_path, selected_samples=None):
         cursor = mplcursors.cursor(lines, hover=True)
         cursor.connect("add", lambda sel: sel.annotation.set_text(sel.artist.get_label()))
 
+        # Add button to hide/show legend
+        def toggle_legend(event):
+            legend.set_visible(not legend.get_visible())
+            plt.draw()
+
+        ax_button = plt.axes([0.81, 0.01, 0.1, 0.075])
+        button = Button(ax_button, 'Toggle Legend')
+        button.on_clicked(toggle_legend)
+
         # Save the plot
         save_dir = os.path.join(os.path.dirname(file_path), 'plots')
         if not os.path.exists(save_dir):
@@ -258,3 +268,18 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
+# input_file_path = '../../data/experiment_1_plastics/processed/result/transmittance_results.csv'
+# plot_transmittance(input_file_path)
+# # Input file path
+#  ../../data/experiment_1_plastics/processed/merged_averages_std_dev.csv
+# # Input directory
+#  ../../data/experiment_1_plastics/processed/
+# # Output file path
+#  ../../data/experiment_1_plastics/processed/plots/
+# # Example commands
+# py plotter.py heatmap ../../data/experiment_1_plastics/processed/*.csv 2 --plot_together
+# py plotter.py overlay ../../data/experiment_1_plastics/processed/*.csv 2
+# py plotter.py overlay_avg ../../data/experiment_1_plastics/processed/*.csv 2
+# py plotter.py plot_transmittance ../../data/experiment_1_plastics/processed/result/transmittance_results.csv A1 B1 C1
+

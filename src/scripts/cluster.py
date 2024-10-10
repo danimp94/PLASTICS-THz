@@ -147,7 +147,7 @@ def cluster_file(file_path, output_directory, n_clusters=3):
     plt.show()
 
 def main():
-    file_path = os.path.abspath('../../data/experiment_1_plastics/processed/merged_averages_std_dev.csv')
+    file_path = os.path.abspath('../../data/experiment_1_plastics/processed/result/merged_averages_std_dev.csv')
     output_directory = os.path.abspath('../../data/experiment_1_plastics/processed/clustered/')
     
     print(f"File path: {file_path}")
