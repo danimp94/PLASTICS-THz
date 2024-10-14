@@ -4,8 +4,6 @@ import os
 import argparse
 
 
-
-
 # Function to find the line number of the ***End_of_Header*** section
 def find_header_end(file_path):
     with open(file_path, 'r') as file:
@@ -104,6 +102,17 @@ def discard_data(df, percentage, mode='last'):
             raise ValueError("Mode must be 'first', 'last', or 'random'.")
     
     return df.groupby('Frequency (GHz)').apply(discard_group).reset_index(drop=True)
+
+def process_single_file(input_file_path, output_dir):
+    output_file_path = os.path.join(output_dir, os.path.basename(input_file_path).replace('.lvm', '.csv'))
+    process_lvm_file(input_file_path, output_file_path, discard_percentage=50, discard_mode='first')
+
+def process_files(input_dir, output_dir):
+    for filename in os.listdir(input_dir):
+        if filename.endswith('.lvm'):
+            input_file_path = os.path.join(input_dir, filename)
+            output_file_path = os.path.join(output_dir, filename.replace('.lvm', '.csv'))
+            process_lvm_file(input_file_path, output_file_path, discard_percentage=0, discard_mode='first')
   
 def concatenate_csv_files(file1, file2, output_file):
     # Read the CSV files
@@ -164,16 +173,7 @@ def calculate_averages(input_file, output_file):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-def process_single_file(input_file_path, output_dir):
-    output_file_path = os.path.join(output_dir, os.path.basename(input_file_path).replace('.lvm', '.csv'))
-    process_lvm_file(input_file_path, output_file_path, discard_percentage=50, discard_mode='first')
 
-def process_files(input_dir, output_dir):
-    for filename in os.listdir(input_dir):
-        if filename.endswith('.lvm'):
-            input_file_path = os.path.join(input_dir, filename)
-            output_file_path = os.path.join(output_dir, filename.replace('.lvm', '.csv'))
-            process_lvm_file(input_file_path, output_file_path, discard_percentage=0, discard_mode='first')
 
 def concatenate_pair_files(input_dir, output_dir):
     all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
@@ -188,7 +188,6 @@ def concatenate_pair_files(input_dir, output_dir):
 def remove_columns(input_dir, output_dir, num_columns, position='last', specific_positions=None):
     """
     Remove a specified number of columns from CSV files in a directory.
-
     Parameters:
     input_dir (str): Directory containing CSV files.
     output_dir (str): Directory to save the modified CSV files.
@@ -387,7 +386,9 @@ def main():
         parser.print_help()
 
 if __name__ == "__main__":
-    main()
+
+    process_files('../../data/experiment_1_plastics/raw/', '../../data/experiment_1_plastics/raw/')
+    # main()
 
 # # Input file path
 #  ../../data/experiment_1_plastics/processed/merged_averages_std_dev.csv
