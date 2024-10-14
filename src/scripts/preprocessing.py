@@ -279,33 +279,63 @@ def calculate_transmittance(input_file, output_dir):
     except Exception as e:
         print(f"An error occurred: {e}")
 
-def calc_variance(df):
-    variance_df = df.groupby('Frequency (GHz)')[['HG (mV)', 'LG (mV)']].var().reset_index()
-    variance_df.columns = ['Frequency (GHz)', 'HG (mV) variance', 'LG (mV) variance']
-    return variance_df
 
-def calc_std_deviation(df):
-    std_dev_df = df.groupby('Frequency (GHz)')[['HG (mV)', 'LG (mV)']].std().reset_index()
-    std_dev_df.columns = ['Frequency (GHz)', 'HG (mV) std deviation', 'LG (mV) std deviation']
-    return std_dev_df
-
-
-def calculate_averages_and_dispersion(df, data_percentage=50):
+def calculate_averages_and_dispersion(input_file, data_percentage=5, output_file=None):
     """
-    For each frequency value calculates the average of a preset window (%data) , then for 
-    each window it calculates the standard deviation and variance of the values in the window.
+    For each frequency value, calculates the average, standard deviation, and variance of LG and HG
+    within a preset window (%data) and saves it in another output file. Just one value per window.
     """
+    df = pd.read_csv(input_file, delimiter=';')
+
     # Calculate the number of rows for each frequency
     freq_counts = df['Frequency (GHz)'].value_counts().sort_index()
     freq_counts = freq_counts.reset_index()
-    # Calculate the average of the preset window for each frequency
-    freq_counts['window_size'] = (freq_counts['Frequency (GHz)'] * data_percentage / 100).astype(int)
-    # Calculate the standard deviation and variance for each frequency using calc_std_deviation and calc_variance for the window size
-    freq_counts['std_deviation'] = freq_counts.apply(lambda x: calc_std_deviation(df[df['Frequency (GHz)'] == x['index']].head(x['window_size'])), axis=1)
-    freq_counts['variance'] = freq_counts.apply(lambda x: calc_variance(df[df['Frequency (GHz)'] == x['index']].head(x['window_size'])), axis=1)
-    # Add the columns to the original dataframe
-    df = df.merge(freq_counts[['index', 'std_deviation', 'variance']], left_on='Frequency (GHz)', right_on='index', suffixes=('', '_freq'))
-    return df
+    freq_counts.columns = ['Frequency (GHz)', 'count'] 
+
+    # Calculate the window size for each frequency as a percentage of the total rows for that frequency
+    freq_counts['window_size'] = (freq_counts['count'] * data_percentage / 100).astype(int)
+    
+    results = []
+
+    for _, row in freq_counts.iterrows(): #
+        freq = row['Frequency (GHz)']
+        window_size = int(row['window_size'])
+        print(f"Processing frequency: {freq} with window size: {window_size}")
+        
+        # Ensure window_size is at least 1
+        if window_size < 1:
+            window_size = 1
+        
+        # Select the data for the current frequency
+        freq_data = df[df['Frequency (GHz)'] == freq]
+        
+        # Iterate over the data in chunks of window_size
+        for start in range(0, len(freq_data), window_size):
+            window_data = freq_data.iloc[start:start + window_size]
+            
+            # Calculate the mean, std deviation, and variance for LG and HG
+            mean_values = window_data[['LG (mV)', 'HG (mV)']].mean()
+            std_deviation_values = window_data[['LG (mV)', 'HG (mV)']].std()
+            variance_values = window_data[['LG (mV)', 'HG (mV)']].var()
+            
+            # Append the results
+            results.append({
+                'Frequency (GHz)': freq,
+                'LG (mV) mean': mean_values['LG (mV)'],
+                'HG (mV) mean': mean_values['HG (mV)'],
+                'LG (mV) std deviation': std_deviation_values['LG (mV)'],
+                'HG (mV) std deviation': std_deviation_values['HG (mV)'],
+                'LG (mV) variance': variance_values['LG (mV)'],
+                'HG (mV) variance': variance_values['HG (mV)']
+            })
+    
+    # Convert results to DataFrame
+    results_df = pd.DataFrame(results)
+    
+    # Save the results to the output file
+    results_df.to_csv(output_file, sep=';', index=False)
+    print(f"Processed {input_file} and saved to {output_file}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Process spectroscopy data.")
@@ -334,7 +364,6 @@ def main():
     parser_remove.add_argument("position", choices=['last', 'first', 'specific'], default='last', help="Position of columns to remove: 'last', 'first', or 'specific'")
     parser_remove.add_argument("--specific_columns", nargs='*', help="List of specific columns to remove (required if position is 'specific')")
 
-
     # Subparser for adding thickness column
     parser_thickness = subparsers.add_parser("add_thickness", help="Add thickness column to CSV files")
     parser_thickness.add_argument("input_dir", help="Directory containing CSV files")
@@ -360,7 +389,7 @@ def main():
     parser_avg_disp = subparsers.add_parser("calculate_averages_and_dispersion", help="Calculate averages and dispersion")
     parser_avg_disp.add_argument("input_file", help="Path to the input CSV file")
     parser_avg_disp.add_argument("output_file", help="Path to save the output CSV file")
-    parser_avg_disp.add_argument("--data_percentage", type=int, default=50, help="Percentage of data to consider for each frequency")
+    parser_avg_disp.add_argument("--data_percentage", type=float, default=50, help="Percentage of data to consider for each frequency")
 
     args = parser.parse_args()
 
@@ -407,4 +436,3 @@ if __name__ == "__main__":
 # python preprocessing.py calculate_averages ../../data/experiment_1_plastics/processed/merged.csv ../../data/experiment_1_plastics/processed/averages.csv
 # python preprocessing.py calculate_transmittance ../../data/experiment_1_plastics/processed/averages.csv ../../data/experiment_1_plastics/processed/
 # python preprocessing.py calculate_averages_and_dispersion ../../data/experiment_1_plastics/processed/averages.csv ../../data/experiment_1_plastics/processed/averages_dispersion.csv --data_percentage 50
-
