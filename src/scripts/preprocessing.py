@@ -386,9 +386,7 @@ def main():
         parser.print_help()
 
 if __name__ == "__main__":
-
-    process_files('../../data/experiment_1_plastics/raw/', '../../data/experiment_1_plastics/raw/')
-    # main()
+    main()
 
 # # Input file path
 #  ../../data/experiment_1_plastics/processed/merged_averages_std_dev.csv
