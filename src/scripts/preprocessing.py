@@ -315,10 +315,6 @@ def calculate_averages_and_dispersion(input_path, data_percentage=5, output_path
             # Iterate over the data in chunks of window_size
             for start in range(0, len(freq_data), window_size):
                 window_data = freq_data.iloc[start:start + window_size]
-
-                # Print the columns selected for each window_size
-                print(f"Processing window from index {start} to {start + window_size} for frequency {freq}")
-                print(window_data[['LG (mV)', 'HG (mV)']])
                             
                 # Calculate the mean, std deviation, and variance for LG and HG
                 mean_values = window_data[['LG (mV)', 'HG (mV)']].mean()
@@ -343,6 +339,16 @@ def calculate_averages_and_dispersion(input_path, data_percentage=5, output_path
         results_df.to_csv(output_file, sep=';', index=False)
         print(f"Processed {input_file} and saved to {output_file}")
 
+    def generate_output_filename(filename):
+        base_name, ext = os.path.splitext(filename)
+        parts = base_name.split('_')
+        if len(parts) > 1:
+            parts.insert(1, 'dispersion')
+            new_base_name = '_'.join(parts)
+        else:
+            new_base_name = f"{base_name}_dispersion"
+        return f"{new_base_name}{ext}"
+
     # Check if input_path is a directory
     if os.path.isdir(input_path):
         if output_path is None:
@@ -356,16 +362,16 @@ def calculate_averages_and_dispersion(input_path, data_percentage=5, output_path
         for filename in os.listdir(input_path):
             if filename.endswith(".csv"):
                 input_file = os.path.join(input_path, filename)
-                base_name = os.path.splitext(filename)[0]
-                output_file = os.path.join(output_path, f"{base_name}_dispersion.csv")
+                output_file = os.path.join(output_path, generate_output_filename(filename))
                 process_file(input_file, output_file)
     else:
         # Process a single file
         if output_path is None:
-            base_name = os.path.splitext(input_path)[0]
-            output_file = f"{base_name}_dispersion.csv"
+            output_file = generate_output_filename(os.path.basename(input_path))
+            output_file = os.path.join(os.path.dirname(input_path), output_file)
         else:
-            output_file = output_path
+            output_file = generate_output_filename(os.path.basename(output_path))
+            output_file = os.path.join(os.path.dirname(output_path), output_file)
         process_file(input_path, output_file)
 
 
@@ -461,7 +467,7 @@ if __name__ == "__main__":
 # Example usage for every command:
 # python preprocessing.py process_single ../../data/experiment_1_plastics/raw/sample1.lvm ../../data/experiment_1_plastics/processed/
 # python preprocessing.py process_multiple ../../data/experiment_1_plastics/raw/ ../../data/experiment_1_plastics/processed/
-# python preprocessing.py concatenate ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/
+# python preprocessing.py concatenate ../../data/experiment_1_plastics/processed_full/dispersion_2/ ../../data/experiment_1_plastics/processed_full/dispersion_2/conc/
 # python preprocessing.py remove_columns ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/ 4 last
 # python preprocessing.py add_thickness ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/characteristics.csv
 # python preprocessing.py merge ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/merged.csv
