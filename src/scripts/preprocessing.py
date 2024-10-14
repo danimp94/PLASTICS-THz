@@ -173,7 +173,7 @@ def process_files(input_dir, output_dir):
         if filename.endswith('.lvm'):
             input_file_path = os.path.join(input_dir, filename)
             output_file_path = os.path.join(output_dir, filename.replace('.lvm', '.csv'))
-            process_lvm_file(input_file_path, output_file_path, discard_percentage=75, discard_mode='first')
+            process_lvm_file(input_file_path, output_file_path, discard_percentage=0, discard_mode='first')
 
 def concatenate_pair_files(input_dir, output_dir):
     all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
@@ -280,6 +280,34 @@ def calculate_transmittance(input_file, output_dir):
     except Exception as e:
         print(f"An error occurred: {e}")
 
+def calc_variance(df):
+    variance_df = df.groupby('Frequency (GHz)')[['HG (mV)', 'LG (mV)']].var().reset_index()
+    variance_df.columns = ['Frequency (GHz)', 'HG (mV) variance', 'LG (mV) variance']
+    return variance_df
+
+def calc_std_deviation(df):
+    std_dev_df = df.groupby('Frequency (GHz)')[['HG (mV)', 'LG (mV)']].std().reset_index()
+    std_dev_df.columns = ['Frequency (GHz)', 'HG (mV) std deviation', 'LG (mV) std deviation']
+    return std_dev_df
+
+
+def calculate_averages_and_dispersion(df, data_percentage=50):
+    """
+    For each frequency value calculates the average of a preset window (%data) , then for 
+    each window it calculates the standard deviation and variance of the values in the window.
+    """
+    # Calculate the number of rows for each frequency
+    freq_counts = df['Frequency (GHz)'].value_counts().sort_index()
+    freq_counts = freq_counts.reset_index()
+    # Calculate the average of the preset window for each frequency
+    freq_counts['window_size'] = (freq_counts['Frequency (GHz)'] * data_percentage / 100).astype(int)
+    # Calculate the standard deviation and variance for each frequency using calc_std_deviation and calc_variance for the window size
+    freq_counts['std_deviation'] = freq_counts.apply(lambda x: calc_std_deviation(df[df['Frequency (GHz)'] == x['index']].head(x['window_size'])), axis=1)
+    freq_counts['variance'] = freq_counts.apply(lambda x: calc_variance(df[df['Frequency (GHz)'] == x['index']].head(x['window_size'])), axis=1)
+    # Add the columns to the original dataframe
+    df = df.merge(freq_counts[['index', 'std_deviation', 'variance']], left_on='Frequency (GHz)', right_on='index', suffixes=('', '_freq'))
+    return df
+
 def main():
     parser = argparse.ArgumentParser(description="Process spectroscopy data.")
     subparsers = parser.add_subparsers(dest="command")
@@ -299,10 +327,14 @@ def main():
     parser_concat.add_argument("input_dir", help="Directory containing CSV files")
     parser_concat.add_argument("output_dir", help="Directory to save the concatenated CSV files")
 
-    # Subparser for removing last columns
-    parser_remove = subparsers.add_parser("remove_columns", help="Remove the last 4 columns from CSV files")
+    # Subparser for removing columns
+    parser_remove = subparsers.add_parser("remove_columns", help="Remove columns from CSV files")
     parser_remove.add_argument("input_dir", help="Directory containing CSV files")
     parser_remove.add_argument("output_dir", help="Directory to save the modified CSV files")
+    parser_remove.add_argument("num_columns", type=int, help="Number of columns to remove from the CSV files")
+    parser_remove.add_argument("position", choices=['last', 'first', 'specific'], default='last', help="Position of columns to remove: 'last', 'first', or 'specific'")
+    parser_remove.add_argument("--specific_columns", nargs='*', help="List of specific columns to remove (required if position is 'specific')")
+
 
     # Subparser for adding thickness column
     parser_thickness = subparsers.add_parser("add_thickness", help="Add thickness column to CSV files")
@@ -325,6 +357,12 @@ def main():
     parser_transmittance.add_argument("input_file", help="Path to the input CSV file")
     parser_transmittance.add_argument("output_dir", help="Path to save the output CSV file")
 
+    # Subparser for calculating averages and dispersion
+    parser_avg_disp = subparsers.add_parser("calculate_averages_and_dispersion", help="Calculate averages and dispersion")
+    parser_avg_disp.add_argument("input_file", help="Path to the input CSV file")
+    parser_avg_disp.add_argument("output_file", help="Path to save the output CSV file")
+    parser_avg_disp.add_argument("--data_percentage", type=int, default=50, help="Percentage of data to consider for each frequency")
+
     args = parser.parse_args()
 
     if args.command == "process_single":
@@ -334,7 +372,7 @@ def main():
     elif args.command == "concatenate":
         concatenate_pair_files(args.input_dir, args.output_dir)
     elif args.command == "remove_columns":
-        remove_columns(args.input_dir, args.output_dir)
+        remove_columns(args.input_dir, args.output_dir, args.num_columns, args.position, args.specific_columns)
     elif args.command == "add_thickness":
         add_thickness_column(args.input_dir, args.output_dir, args.characteristics_file)
     elif args.command == "merge":
@@ -343,6 +381,8 @@ def main():
         calculate_averages(args.input_file, args.output_file)
     elif args.command == "calculate_transmittance":
         calculate_transmittance(args.input_file, args.output_dir)
+    elif args.command == "calculate_averages_and_dispersion":
+        calculate_averages_and_dispersion(args.input_file, args.data_percentage, args.output_file)
     else:
         parser.print_help()
 
@@ -357,3 +397,15 @@ if __name__ == "__main__":
 
 # # Output file path
 #  ../../data/experiment_1_plastics/processed/result/
+
+# Example usage for every command:
+# python preprocessing.py process_single ../../data/experiment_1_plastics/raw/sample1.lvm ../../data/experiment_1_plastics/processed/
+# python preprocessing.py process_multiple ../../data/experiment_1_plastics/raw/ ../../data/experiment_1_plastics/processed/
+# python preprocessing.py concatenate ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/
+# python preprocessing.py remove_columns ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/ 4 last
+# python preprocessing.py add_thickness ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/characteristics.csv
+# python preprocessing.py merge ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/merged.csv
+# python preprocessing.py calculate_averages ../../data/experiment_1_plastics/processed/merged.csv ../../data/experiment_1_plastics/processed/averages.csv
+# python preprocessing.py calculate_transmittance ../../data/experiment_1_plastics/processed/averages.csv ../../data/experiment_1_plastics/processed/
+# python preprocessing.py calculate_averages_and_dispersion ../../data/experiment_1_plastics/processed/averages.csv ../../data/experiment_1_plastics/processed/averages_dispersion.csv --data_percentage 50
+
