@@ -174,7 +174,6 @@ def calculate_averages(input_file, output_file):
         print(f"An error occurred: {e}")
 
 
-
 def concatenate_pair_files(input_dir, output_dir):
     all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
     for i in range(0, len(all_files), 2):
@@ -184,6 +183,7 @@ def concatenate_pair_files(input_dir, output_dir):
             base_name = all_files[i][:-6]
             concatenated_file = os.path.join(output_dir, f"{base_name}_{i//2}.csv")
             concatenate_csv_files(file1, file2, concatenated_file)
+            
 
 def remove_columns(input_dir, output_dir, num_columns, position='last', specific_positions=None):
     """
@@ -315,7 +315,11 @@ def calculate_averages_and_dispersion(input_path, data_percentage=5, output_path
             # Iterate over the data in chunks of window_size
             for start in range(0, len(freq_data), window_size):
                 window_data = freq_data.iloc[start:start + window_size]
-                
+
+                # Print the columns selected for each window_size
+                print(f"Processing window from index {start} to {start + window_size} for frequency {freq}")
+                print(window_data[['LG (mV)', 'HG (mV)']])
+                            
                 # Calculate the mean, std deviation, and variance for LG and HG
                 mean_values = window_data[['LG (mV)', 'HG (mV)']].mean()
                 std_deviation_values = window_data[['LG (mV)', 'HG (mV)']].std()
