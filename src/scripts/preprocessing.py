@@ -280,61 +280,89 @@ def calculate_transmittance(input_file, output_dir):
         print(f"An error occurred: {e}")
 
 
-def calculate_averages_and_dispersion(input_file, data_percentage=5, output_file=None):
+
+def calculate_averages_and_dispersion(input_path, data_percentage=5, output_path=None):
     """
     For each frequency value, calculates the average, standard deviation, and variance of LG and HG
     within a preset window (%data) and saves it in another output file. Just one value per window.
+    If input_path is a directory, processes all CSV files in the directory.
     """
-    df = pd.read_csv(input_file, delimiter=';')
+    def process_file(input_file, output_file):
+        df = pd.read_csv(input_file, delimiter=';')
 
-    # Calculate the number of rows for each frequency
-    freq_counts = df['Frequency (GHz)'].value_counts().sort_index()
-    freq_counts = freq_counts.reset_index()
-    freq_counts.columns = ['Frequency (GHz)', 'count'] 
+        # Calculate the number of rows for each frequency
+        freq_counts = df['Frequency (GHz)'].value_counts().sort_index()
+        freq_counts = freq_counts.reset_index()
+        freq_counts.columns = ['Frequency (GHz)', 'count'] 
 
-    # Calculate the window size for each frequency as a percentage of the total rows for that frequency
-    freq_counts['window_size'] = (freq_counts['count'] * data_percentage / 100).astype(int)
-    
-    results = []
+        # Calculate the window size for each frequency as a percentage of the total rows for that frequency
+        freq_counts['window_size'] = (freq_counts['count'] * data_percentage / 100).astype(int)
 
-    for _, row in freq_counts.iterrows(): #
-        freq = row['Frequency (GHz)']
-        window_size = int(row['window_size'])
-        print(f"Processing frequency: {freq} with window size: {window_size}")
-        
-        # Ensure window_size is at least 1
-        if window_size < 1:
-            window_size = 1
-        
-        # Select the data for the current frequency
-        freq_data = df[df['Frequency (GHz)'] == freq]
-        
-        # Iterate over the data in chunks of window_size
-        for start in range(0, len(freq_data), window_size):
-            window_data = freq_data.iloc[start:start + window_size]
+        results = []
+
+        for _, row in freq_counts.iterrows():
+            freq = row['Frequency (GHz)']
+            window_size = int(row['window_size'])
+            print(f"Processing frequency: {freq} with window size: {window_size}")
             
-            # Calculate the mean, std deviation, and variance for LG and HG
-            mean_values = window_data[['LG (mV)', 'HG (mV)']].mean()
-            std_deviation_values = window_data[['LG (mV)', 'HG (mV)']].std()
-            variance_values = window_data[['LG (mV)', 'HG (mV)']].var()
+            # Ensure window_size is at least 1
+            if window_size < 1:
+                window_size = 1
             
-            # Append the results
-            results.append({
-                'Frequency (GHz)': freq,
-                'LG (mV) mean': mean_values['LG (mV)'],
-                'HG (mV) mean': mean_values['HG (mV)'],
-                'LG (mV) std deviation': std_deviation_values['LG (mV)'],
-                'HG (mV) std deviation': std_deviation_values['HG (mV)'],
-                'LG (mV) variance': variance_values['LG (mV)'],
-                'HG (mV) variance': variance_values['HG (mV)']
-            })
-    
-    # Convert results to DataFrame
-    results_df = pd.DataFrame(results)
-    
-    # Save the results to the output file
-    results_df.to_csv(output_file, sep=';', index=False)
-    print(f"Processed {input_file} and saved to {output_file}")
+            # Select the data for the current frequency
+            freq_data = df[df['Frequency (GHz)'] == freq]
+            
+            # Iterate over the data in chunks of window_size
+            for start in range(0, len(freq_data), window_size):
+                window_data = freq_data.iloc[start:start + window_size]
+                
+                # Calculate the mean, std deviation, and variance for LG and HG
+                mean_values = window_data[['LG (mV)', 'HG (mV)']].mean()
+                std_deviation_values = window_data[['LG (mV)', 'HG (mV)']].std()
+                variance_values = window_data[['LG (mV)', 'HG (mV)']].var()
+                
+                # Append the results
+                results.append({
+                    'Frequency (GHz)': freq,
+                    'LG (mV) mean': mean_values['LG (mV)'],
+                    'HG (mV) mean': mean_values['HG (mV)'],
+                    'LG (mV) std deviation': std_deviation_values['LG (mV)'],
+                    'HG (mV) std deviation': std_deviation_values['HG (mV)'],
+                    'LG (mV) variance': variance_values['LG (mV)'],
+                    'HG (mV) variance': variance_values['HG (mV)']
+                })
+        
+        # Convert results to DataFrame
+        results_df = pd.DataFrame(results)
+        
+        # Save the results to the output file
+        results_df.to_csv(output_file, sep=';', index=False)
+        print(f"Processed {input_file} and saved to {output_file}")
+
+    # Check if input_path is a directory
+    if os.path.isdir(input_path):
+        if output_path is None:
+            raise ValueError("Output path must be specified when input is a directory.")
+        
+        # Ensure the output directory exists
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        
+        # Process each CSV file in the input directory
+        for filename in os.listdir(input_path):
+            if filename.endswith(".csv"):
+                input_file = os.path.join(input_path, filename)
+                base_name = os.path.splitext(filename)[0]
+                output_file = os.path.join(output_path, f"{base_name}_dispersion.csv")
+                process_file(input_file, output_file)
+    else:
+        # Process a single file
+        if output_path is None:
+            base_name = os.path.splitext(input_path)[0]
+            output_file = f"{base_name}_dispersion.csv"
+        else:
+            output_file = output_path
+        process_file(input_path, output_file)
 
 
 def main():
