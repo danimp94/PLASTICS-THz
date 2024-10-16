@@ -105,7 +105,7 @@ def discard_data(df, percentage, mode='last'):
 
 def process_single_file(input_file_path, output_dir):
     output_file_path = os.path.join(output_dir, os.path.basename(input_file_path).replace('.lvm', '.csv'))
-    process_lvm_file(input_file_path, output_file_path, discard_percentage=50, discard_mode='first')
+    process_lvm_file(input_file_path, output_file_path, discard_percentage=0, discard_mode='first')
 
 def process_files(input_dir, output_dir):
     for filename in os.listdir(input_dir):
@@ -464,7 +464,7 @@ if __name__ == "__main__":
 # # Output file path
 #  ../../data/experiment_1_plastics/processed/result/
 
-# Example usage for every command:
+# Example usage for every command (from /src/scripts directory):
 # python preprocessing.py process_single ../../data/experiment_1_plastics/raw/sample1.lvm ../../data/experiment_1_plastics/processed/
 # python preprocessing.py process_multiple ../../data/experiment_1_plastics/raw/ ../../data/experiment_1_plastics/processed/
 # python preprocessing.py concatenate ../../data/experiment_1_plastics/processed_full/dispersion_2/ ../../data/experiment_1_plastics/processed_full/dispersion_2/conc/
