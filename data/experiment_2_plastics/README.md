@@ -2,6 +2,9 @@
 
 ## Description
   - Test 1: Sweep without sample --> REF_1
+  - Test 2: Sweep with sample E1 --> E1_1
+  - Test 3: Sweep with sample E3 --> E3_1
+  - Test 4: Sweep with sample H1 --> H1_1 
 
   All tests are carried out in 2 steps:
 
@@ -9,7 +12,7 @@
     2nd step: 35s sweep from 210 to 600 GHz (First 20s and last 3s are removed due to stabilization issues)
 
 ## Date
-- 17/10/2024 - Test 11 to 15 (21.5ºC, 61.0 %RH)
+- 17/10/2024 - Test 1 to 4 (21.5ºC, 52.0-61.0 %RH)
 
 ## Setup
 - **Equipment Used**: Spectroscopy setup with PCA and Schottky detector
