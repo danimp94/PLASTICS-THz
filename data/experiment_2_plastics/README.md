@@ -7,8 +7,9 @@
   - Test 4: Sweep with sample H1 --> H1_1
   - Test 5: Sweep with sample H1 --> H1_2
   - Test 6: Sweep with sample E4 --> E4_1
-  - Test 7: Sweep without sample --> REF_2
-
+  - Test 7: Sweep with sample H3 --> H3_1
+  - Test 8: Sweep with sample H2 --> H2_1
+  - Test 9: Sweep without sample --> REF_2
 
   All tests are carried out in 2 steps:
 
