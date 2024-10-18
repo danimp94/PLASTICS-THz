@@ -97,6 +97,16 @@ def concatenate_csv_files(file1, file2, output_file):
     concatenated_df = pd.concat([df1, df2])
     concatenated_df.to_csv(output_file, index=False, sep=';')
 
+def concatenate_pair_files(input_dir, output_dir):
+    all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
+    for i in range(0, len(all_files), 2):
+        if i + 1 < len(all_files):
+            file1 = os.path.join(input_dir, all_files[i])
+            file2 = os.path.join(input_dir, all_files[i + 1])
+            base_name = all_files[i][:-6]
+            concatenated_file = os.path.join(output_dir, f"{base_name}_{i//2}.csv")
+            concatenate_csv_files(file1, file2, concatenated_file)
+
 def merge_files(input_dir, output_file):
     all_data = []
     for file in os.listdir(input_dir):
@@ -129,16 +139,6 @@ def calculate_averages(input_file, output_file):
         print(f"File not found: {e}")
     except Exception as e:
         print(f"An error occurred: {e}")
-
-def concatenate_pair_files(input_dir, output_dir):
-    all_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.csv')])
-    for i in range(0, len(all_files), 2):
-        if i + 1 < len(all_files):
-            file1 = os.path.join(input_dir, all_files[i])
-            file2 = os.path.join(input_dir, all_files[i + 1])
-            base_name = all_files[i][:-6]
-            concatenated_file = os.path.join(output_dir, f"{base_name}_{i//2}.csv")
-            concatenate_csv_files(file1, file2, concatenated_file)
 
 def remove_columns(input_dir, output_dir, num_columns, position='last', specific_positions=None):
     for file in os.listdir(input_dir):
@@ -350,19 +350,21 @@ if __name__ == "__main__":
 
     # Processing pipeline (from /src/scripts directory):
     # Input file path
-    input = "../../data/experiment_2_plastics/raw/E1_1_test.lvm"
+    input = "../../data/experiment_2_plastics/raw/"
 
     # Output directory
     output = "../../data/experiment_2_plastics/processed/"
 
     # Process files
     channel_names = ["Frequency (GHz)", "LG (mV)", "HG (mV)"]
-    discard_first_percentage = 77
-    discard_last_percentage = 20 # Discard 20% of resulting data from the end after discarding 77% from the beginning
+    discard_first_percentage = 77 # Discard 77% of data from the beginning (50s/65s) 77x0.74 for frequencies > 200 GHz (20s/35s)
+    discard_last_percentage = 20 # Discard 20% of resulting data from the end after discarding 77% from the beginning (3s/15s)
 
     process_files(input, output, discard_first_percentage, discard_last_percentage, channel_names)
 
-    # Convert to csv file
+    calculate_averages_and_dispersion(output, data_percentage=8.33, output_path=os.path.join(output, 'dispersion'))
+
+
 
 
 
