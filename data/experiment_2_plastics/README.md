@@ -10,6 +10,7 @@
   - Test 7: Sweep with sample H3 --> H3_1
   - Test 8: Sweep with sample H2 --> H2_1
   - Test 9: Sweep without sample --> REF_2
+  - Test 10: Sweep with sample E1 --> E1_2
 
   All tests are carried out in 2 steps:
 
@@ -18,7 +19,7 @@
 
 ## Date
 - 17/10/2024 - Test 1 to 4 (21.5ºC, 52.0-61.0 %RH)
-- 18/18/2024 - Test 5 to   (21.0ºC, 48.0-50.0 %RH)
+- 18/10/2024 - Test 5 to 10 (21.0ºC, 46.0-50.0 %RH)
 
 ## Setup
 - **Equipment Used**: Spectroscopy setup with PCA and Schottky detector
