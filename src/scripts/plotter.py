@@ -6,20 +6,30 @@ import argparse
 import mplcursors
 from matplotlib.widgets import Button
 
-def read_lvm(file_path):
+def get_files(file_or_directory):
+    if os.path.isdir(file_or_directory):
+        # List all files in the directory and filter for CSV and LVM files
+        files = os.listdir(file_or_directory)
+        data_files = [os.path.join(file_or_directory, f) for f in files if f.endswith('.csv') or f.endswith('.lvm')]
+        return data_files
+    elif os.path.isfile(file_or_directory) and (file_or_directory.endswith('.csv') or file_or_directory.endswith('.lvm')):
+        return [file_or_directory]
+    else:
+        print(f"Invalid input: {file_or_directory}")
+        return []
+
+def read_lvm(file_path, start_line):
     data = []
     with open(file_path, 'r') as file:
-        for line in file:
-            try:
-                line = line.replace(',', '.').strip()
-                line_data = list(map(float, line.split('\t')))
-                if len(line_data) == 7:
+        for i, line in enumerate(file):
+            if i >= start_line:  # Skip lines until reaching the data section
+                try:
+                    line = line.replace(',', '.').strip()  # Ensure any extra spaces are removed
+                    line_data = list(map(float, line.split('\t')))
                     data.append(line_data)
-                else:
-                    print(f"Skipping line with unexpected column count: {line_data}")
-            except ValueError as e:
-                print(f"Skipping line due to ValueError: {e}")
-                continue
+                except ValueError as e:
+                    print(f"Skipping line due to ValueError: {e}")
+                    continue
     return np.array(data) if data else np.array([])
 
 def read_csv(file_path):
@@ -31,7 +41,8 @@ def read_csv(file_path):
         print(f"Error reading CSV file: {e}")
         return np.array([])
 
-def plot_data_heatmap(data_files, channel_indices, plot_together=True):
+def plot_data_heatmap(file_or_directory, channel_indices, plot_together=True):
+    data_files = get_files(file_or_directory)
     if plot_together:
         plt.figure(figsize=(16, 12))
 
@@ -89,7 +100,8 @@ def plot_data_heatmap(data_files, channel_indices, plot_together=True):
         plt.savefig(save_path, dpi=300)
         print(f"Combined heatmap plot saved as: {save_path}")
 
-def plot_data_overlay(data_files, channel_indices):
+def plot_data_overlay(file_or_directory, channel_indices):
+    data_files = get_files(file_or_directory)
     plt.figure(figsize=(16, 12))
 
     for file_path in data_files:
@@ -114,7 +126,8 @@ def plot_data_overlay(data_files, channel_indices):
     plt.legend()
     plt.show()
 
-def plot_data_overlay_average(data_files, channel_indices):
+def plot_data_overlay_average(file_or_directory, channel_indices):
+    data_files = get_files(file_or_directory)
     plt.figure(figsize=(16, 12))
 
     for file_path in data_files:
@@ -160,77 +173,96 @@ def plot_data_overlay_average(data_files, channel_indices):
 
     plt.show()
 
-def plot_transmittance(file_path, selected_samples=None):
-    try:
+def plot_transmittance(file_or_directory, selected_samples=None):
+    data_files = get_files(file_or_directory)
+    
+    # If no samples are selected, use all files as samples
+    if selected_samples is None:
+        selected_samples = [os.path.splitext(os.path.basename(file_path))[0] for file_path in data_files]
+
+    plt.figure(figsize=(16, 12))
+    lines = []
+
+    for file_path in data_files:
         # Read the CSV file
         df = pd.read_csv(file_path, delimiter=';')
 
-        # If no samples are selected, plot all samples
-        if selected_samples is None:
-            selected_samples = df['Sample'].unique()
+        # Get the sample name from the file name
+        sample_name = os.path.splitext(os.path.basename(file_path))[0]
 
-        # Filter the DataFrame based on the selected samples
-        filtered_df = df[df['Sample'].isin(selected_samples)]
+        # Calculate transmittance ratio using REF files as reference
+        # Calculate the mean of the REF files
+        ref_data = sample_name.startswith('REF')
 
-        # Plot the data
-        plt.figure(figsize=(16, 12))
-        lines = []
-        for sample in selected_samples:
-            sample_df = filtered_df[filtered_df['Sample'] == sample]
-            line1, = plt.plot(sample_df['Frequency (GHz)'], sample_df['HG (mV) mean Transmittance'], label=f'{sample} HG Transmittance', linestyle='-', marker='o')
-            line2, = plt.plot(sample_df['Frequency (GHz)'], sample_df['LG (mV) mean Transmittance'], label=f'{sample} LG Transmittance', linestyle='--', marker='x')
+        # Skip files that are not used as reference
+        if ref_data:
+            ref_files = [f for f in data_files if os.path.splitext(os.path.basename(f))[0].startswith('REF')]
+            ref_df = pd.concat([pd.read_csv(f, delimiter=';') for f in ref_files], ignore_index=True)
+            ref_grouped = ref_df.groupby('Frequency (GHz)')
+
+    # Calculate transmittance for each frequency
+    for file_path in data_files:
+        try:
+            # Read the CSV file
+            df = pd.read_csv(file_path, delimiter=';')
+
+            # Get the sample name from the file name
+            sample_name = os.path.splitext(os.path.basename(file_path))[0]
+
+            # Skip files that are not in the selected samples
+            if sample_name not in selected_samples:
+                continue
+
+            # Calculate mean for each frequency
+            grouped = df.groupby('Frequency (GHz)')
+            df['HG (mV) mean'] = grouped['HG (mV)'].transform('mean')
+            df['LG (mV) mean'] = grouped['LG (mV)'].transform('mean')
+
+            # Calculate Transmittance ratio
+            df['HG (mV) Transmittance'] = df['HG (mV) mean'] / ref_grouped['HG (mV)'].transform('mean')
+            df['LG (mV) Transmittance'] = df['LG (mV) mean'] / ref_grouped['LG (mV)'].transform('mean')       
+
+            # Plot the data as sparse
+            line1, = plt.plot(df['Frequency (GHz)'], df['HG (mV) Transmittance'], label=f'{sample_name} HG Transmittance', linestyle='-', marker='o')
+            line2, = plt.plot(df['Frequency (GHz)'], df['LG (mV) Transmittance'], label=f'{sample_name} LG Transmittance', linestyle='--', marker='x')
             lines.extend([line1, line2])
 
-        # Add labels, legend, and grid
-        plt.xlabel('Frequency (GHz)')
-        plt.ylabel('Transmittance Ratio')
-        plt.title('Transmittance vs Frequency')
-        legend = plt.legend()
-        plt.grid(True)
+        except FileNotFoundError as e:
+            print(f"File not found: {e}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
-        # Add interactive legend
-        lined = {legline: origline for legline, origline in zip(legend.get_lines(), lines)}
-        def on_pick(event):
-            legline = event.artist
-            origline = lined[legline]
-            visible = not origline.get_visible()
-            origline.set_visible(visible)
-            legline.set_alpha(1.0 if visible else 0.2)
-            plt.draw()
+    # Add labels, legend, and grid
+    plt.xlabel('Frequency (GHz)')
+    plt.ylabel('Transmittance Ratio')
+    plt.title('Transmittance vs Frequency')
+    legend = plt.legend()
+    plt.grid(True)
 
-        plt.gcf().canvas.mpl_connect('pick_event', on_pick)
-        for legline in legend.get_lines():
-            legline.set_picker(True)
+    # Add interactive cursor
+    cursor = mplcursors.cursor(lines, hover=True)
+    cursor.connect("add", lambda sel: sel.annotation.set_text(sel.artist.get_label()))
 
-        # Add interactive cursor
-        cursor = mplcursors.cursor(lines, hover=True)
-        cursor.connect("add", lambda sel: sel.annotation.set_text(sel.artist.get_label()))
+    # Add button to hide/show legend
+    def toggle_legend(event):
+        legend.set_visible(not legend.get_visible())
+        plt.draw()
 
-        # Add button to hide/show legend
-        def toggle_legend(event):
-            legend.set_visible(not legend.get_visible())
-            plt.draw()
+    ax_button = plt.axes([0.81, 0.01, 0.1, 0.075])
+    button = Button(ax_button, 'Toggle Legend')
+    button.on_clicked(toggle_legend)
 
-        ax_button = plt.axes([0.81, 0.01, 0.1, 0.075])
-        button = Button(ax_button, 'Toggle Legend')
-        button.on_clicked(toggle_legend)
+    # Save the plot
+    save_dir = os.path.join(os.path.dirname(data_files[0]), 'plots')
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
-        # Save the plot
-        save_dir = os.path.join(os.path.dirname(file_path), 'plots')
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+    base_name = "_".join(selected_samples)
+    save_path = os.path.join(save_dir, f'transmittance_plot_{base_name}.png')
+    plt.savefig(save_path, dpi=300)
+    print(f"Transmittance plot saved as: {save_path}")
 
-        base_name = os.path.splitext(os.path.basename(file_path))[0]
-        save_path = os.path.join(save_dir, f'transmittance_plot_{base_name}.png')
-        plt.savefig(save_path, dpi=300)
-        print(f"Transmittance plot saved as: {save_path}")
-
-        plt.show()
-
-    except FileNotFoundError as e:
-        print(f"File not found: {e}")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    plt.show() 
 
 def main():
     parser = argparse.ArgumentParser(description="Plot spectroscopy data.")
@@ -267,19 +299,14 @@ def main():
         parser.print_help()
 
 if __name__ == "__main__":
-    main()
+
+    input = '../../data/experiment_2_plastics/processed/'
+
+    # plot_data_heatmap(input, channel_indices = [1,2], plot_together=True)
+
+    selected_samples = ['E1_1', 'E1_2']
+    plot_transmittance(input, selected_samples=selected_samples)
+
+    # main()
     
-# input_file_path = '../../data/experiment_1_plastics/processed/result/transmittance_results.csv'
-# plot_transmittance(input_file_path)
-# # Input file path
-#  ../../data/experiment_1_plastics/processed/merged_averages_std_dev.csv
-# # Input directory
-#  ../../data/experiment_1_plastics/processed/
-# # Output file path
-#  ../../data/experiment_1_plastics/processed/plots/
-# # Example commands
-# py plotter.py heatmap ../../data/experiment_1_plastics/processed/*.csv 2 --plot_together
-# py plotter.py overlay ../../data/experiment_1_plastics/processed/*.csv 2
-# py plotter.py overlay_avg ../../data/experiment_1_plastics/processed/*.csv 2
-# py plotter.py plot_transmittance ../../data/experiment_1_plastics/processed/result/transmittance_results.csv A1 B1 C1
 
