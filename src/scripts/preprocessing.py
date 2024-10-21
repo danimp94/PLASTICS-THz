@@ -357,15 +357,14 @@ if __name__ == "__main__":
 
     # Process files
     channel_names = ["Frequency (GHz)", "LG (mV)", "HG (mV)"]
-    discard_first_percentage = 77 # Discard 77% of data from the beginning (50s/65s) 77x0.74 for frequencies > 200 GHz (20s/35s)
+    discard_first_percentage = 77 # Discard 77% of data from the beginning (50s/65s) *77x0.74 for frequencies > 200 GHz (20s/35s)
     discard_last_percentage = 20 # Discard 20% of resulting data from the end after discarding 77% from the beginning (3s/15s)
 
     process_files(input, output, discard_first_percentage, discard_last_percentage, channel_names)
 
-    calculate_averages_and_dispersion(output, data_percentage=8.33, output_path=os.path.join(output, 'dispersion'))
-
-
-
+    time_window = 1 # Time window in seconds
+    data_percentage = time_window*100/12
+    calculate_averages_and_dispersion(output, data_percentage, output_path=os.path.join(output, 'dispersion'))
 
 
     # main()
