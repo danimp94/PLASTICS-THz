@@ -24,17 +24,23 @@ def read_lvm(file_path, start_line):
                     continue
     return np.array(data) if data else np.array([])
 
-def process_lvm_file(file_path, output_path, discard_first_percentage=0, discard_last_percentage=0, channel_names=None):
-    header_line = find_header_end(file_path)
-    if header_line is None:
-        print("Error: Could not find the ***End_of_Header*** marker in the file.")
+def process_file_to_csv(file_path, output_path, discard_first_percentage=0, discard_last_percentage=0, channel_names=None):
+    if file_path.endswith('.lvm'):
+        header_line = find_header_end(file_path)
+        if header_line is None:
+            print("Error: Could not find the ***End_of_Header*** marker in the file.")
+            return
+        data = read_lvm(file_path, header_line)
+    elif file_path.endswith('.csv'):
+        data = pd.read_csv(file_path, delimiter=';').values
+    else:
+        print("Error: Unsupported file format. Only .lvm and .csv files are supported.")
         return
-    data = read_lvm(file_path, header_line)
 
     if data.size == 0:
         print("Error: No data found in the file.")
         return
-    
+
     if channel_names is None:
         num_columns = data.shape[1]
         column_names = [f"Column {i}" for i in range(num_columns)]
@@ -43,16 +49,16 @@ def process_lvm_file(file_path, output_path, discard_first_percentage=0, discard
 
     if discard_first_percentage + discard_last_percentage >= 100:
         raise ValueError("The sum of discard_first_percentage and discard_last_percentage must be less than 100.")
-    
+
     df = pd.DataFrame(data, columns=column_names)
-    
+
     if discard_first_percentage > 0:
         df = discard_data(df, discard_first_percentage, 0)
     if discard_last_percentage > 0:
         df = discard_data(df, 0, discard_last_percentage)
 
-    
     df.to_csv(output_path, sep=';', index=False)
+
 
 def discard_data(df, discard_first_percentage, discard_last_percentage):
     def discard_group(group):
@@ -77,17 +83,17 @@ def process_files(input_path, output_dir, discard_first_percentage=0, discard_la
     
     print(f"Input path: {input_path}")  # Debugging line
     print(f"Output directory: {output_dir}")  # Debugging line
-
    
     if os.path.isfile(input_path):
         output_file_path = os.path.join(output_dir, os.path.basename(input_path).replace('.lvm', '.csv'))
-        process_lvm_file(input_path, output_file_path, discard_first_percentage, discard_last_percentage, channel_names)
+        process_file_to_csv(input_path, output_file_path, discard_first_percentage, discard_last_percentage, channel_names)
     elif os.path.isdir(input_path):
         for filename in os.listdir(input_path):
-            if filename.endswith('.lvm'):
+            if filename.endswith('.lvm') or filename.endswith('.csv'):
                 input_file_path = os.path.join(input_path, filename)
                 output_file_path = os.path.join(output_dir, filename.replace('.lvm', '.csv'))
-                process_lvm_file(input_file_path, output_file_path, discard_first_percentage, discard_last_percentage, channel_names)
+                process_file_to_csv(input_file_path, output_file_path, discard_first_percentage, discard_last_percentage, channel_names)                
+
     else:
         raise ValueError("Input path must be a file or directory.")
 
@@ -107,6 +113,7 @@ def concatenate_pair_files(input_dir, output_dir):
             concatenated_file = os.path.join(output_dir, f"{base_name}_{i//2}.csv")
             concatenate_csv_files(file1, file2, concatenated_file)
 
+## Merge all CSV files in a directory
 def merge_files(input_dir, output_file):
     all_data = []
     for file in os.listdir(input_dir):
@@ -115,7 +122,6 @@ def merge_files(input_dir, output_file):
             print(f"Processing file: {file_path}")
             try:
                 df = pd.read_csv(file_path, delimiter=';')
-                df.insert(0, 'Sample', os.path.splitext(file)[0])
                 all_data.append(df)
             except FileNotFoundError as e:
                 print(f"File not found: {e}")
@@ -124,6 +130,22 @@ def merge_files(input_dir, output_file):
     merged_df = pd.concat(all_data, ignore_index=True)
     merged_df.to_csv(output_file, sep=';', index=False)
     print(f"Merged file saved to: {output_file}")
+
+## Add sample name column to the data
+def add_sample_name_column(input_dir, output_dir):
+    for file in os.listdir(input_dir):
+        if file.endswith('.csv'):
+            file_path = os.path.join(input_dir, file)
+            print(f"Processing file: {file_path}")
+            try:
+                df = pd.read_csv(file_path, delimiter=';')
+                df.insert(0, 'Sample', os.path.splitext(file)[0])
+                output_file_path = os.path.join(output_dir, file)
+                df.to_csv(output_file_path, sep=';', index=False)
+            except FileNotFoundError as e:
+                print(f"File not found: {e}")
+            except Exception as e:
+                print(f"An error occurred: {e}")
 
 def calculate_averages(input_file, output_file):
     try:
@@ -350,44 +372,28 @@ if __name__ == "__main__":
 
     # Processing pipeline (from /src/scripts directory):
     # Input file path
-    input = "../../data/experiment_2_plastics/raw/"
+    # input = "../../data/experiment_2_plastics/raw/"
+    input = "../../data/experiment_1_plastics/processed_last_30s/clean/"
 
-    # Output directory
-    output = "../../data/experiment_2_plastics/processed/"
+    # # Output directory
+    output = "../../data/experiment_1_plastics/processed_last_30s/clean/"
 
-    # Process files
-    channel_names = ["Frequency (GHz)", "LG (mV)", "HG (mV)"]
-    discard_first_percentage = 77 # Discard 77% of data from the beginning (50s/65s) *77x0.74 for frequencies > 200 GHz (20s/35s)
-    discard_last_percentage = 20 # Discard 20% of resulting data from the end after discarding 77% from the beginning (3s/15s)
+    # # Process files
+    # channel_names = ["Frequency (GHz)", "LG (mV)", "HG (mV)", "Thickness (mm)"]
+    # discard_first_percentage = 0 # Discard 77% of data from the beginning (50s/65s) *77x0.74 for frequencies > 200 GHz (20s/35s)
+    # discard_last_percentage = 10 # Discard 20% of resulting data from the end after discarding 77% from the beginning (3s/15s)
 
-    process_files(input, output, discard_first_percentage, discard_last_percentage, channel_names)
+    # process_files(input, output, discard_first_percentage, discard_last_percentage, channel_names)
 
-    time_window = 1 # Time window in seconds
-    data_percentage = time_window*100/12
-    calculate_averages_and_dispersion(output, data_percentage, output_path=os.path.join(output, 'dispersion'))
+    # Merge files
+    merge_files(output, os.path.join(output, 'merged.csv'))
+
+    # time_window = 1 # Time window in seconds
+    # data_percentage = time_window*100/12
+    # calculate_averages_and_dispersion(output, data_percentage, output_path=os.path.join(output, 'dispersion'))
 
 
     # main()
 
 
 
-
-
-
-
-# # Input directory
-#  ../../data/experiment_1_plastics/processed/
-
-# # Output file path
-#  ../../data/experiment_1_plastics/processed/result/
-
-# Example usage for every command (from /src/scripts directory):
-# python preprocessing.py process_single ../../data/experiment_1_plastics/raw/sample1.lvm ../../data/experiment_1_plastics/processed/
-# python preprocessing.py process_multiple ../../data/experiment_1_plastics/raw/ ../../data/experiment_1_plastics/processed/
-# python preprocessing.py concatenate ../../data/experiment_1_plastics/processed_full/dispersion_2/ ../../data/experiment_1_plastics/processed_full/dispersion_2/conc/
-# python preprocessing.py remove_columns ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/ 4 last
-# python preprocessing.py add_thickness ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/characteristics.csv
-# python preprocessing.py merge ../../data/experiment_1_plastics/processed/ ../../data/experiment_1_plastics/processed/merged.csv
-# python preprocessing.py calculate_averages ../../data/experiment_1_plastics/processed/merged.csv ../../data/experiment_1_plastics/processed/averages.csv
-# python preprocessing.py calculate_transmittance ../../data/experiment_1_plastics/processed/averages.csv ../../data/experiment_1_plastics/processed/
-# python preprocessing.py calculate_averages_and_dispersion ../../data/experiment_1_plastics/processed/averages.csv ../../data/experiment_1_plastics/processed/averages_dispersion.csv --data_percentage 50

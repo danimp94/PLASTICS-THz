@@ -264,6 +264,191 @@ def plot_transmittance(file_or_directory, selected_samples=None):
 
     plt.show() 
 
+def plot_thickness(file_or_directory, selected_frequency, selected_samples=None):
+        # Read csv files
+    if os.path.isdir(file_or_directory):
+        files = [os.path.join(file_or_directory, f) for f in os.listdir(file_or_directory) if f.endswith('.csv')]
+    else:
+        files = [file_or_directory]
+
+    data_frames = []
+    for file in files:
+        df = pd.read_csv(file, delimiter=';')
+        data_frames.append(df)
+
+    # Concatenate all data frames
+    df = pd.concat(data_frames, ignore_index=True)
+
+    # Filter the dataframe for the selected frequency
+    df_filtered = df[df['Frequency (GHz)'] == selected_frequency]
+
+    # Calculate the average and standard deviation of HG for each sample
+    if selected_samples is None:
+        selected_samples = df_filtered['Sample'].unique()
+
+    avg_hg = []
+    std_hg = []
+    thickness = []
+
+    for sample in selected_samples:
+        sample_df = df_filtered[df_filtered['Sample'] == sample]
+        avg_hg.append(sample_df['HG (mV)'].mean())
+        std_hg.append(sample_df['HG (mV)'].std())
+        thickness.append(sample_df['Thickness (mm)'].iloc[0])  # Assuming thickness is constant for each sample
+
+    # Plot the data
+    plt.figure(figsize=(12, 6))
+    plt.errorbar(thickness, avg_hg, yerr=std_hg, fmt='o', capsize=5, label='HG (mV)')
+
+    plt.xlabel('Thickness (mm)')
+    plt.ylabel('Average HG (mV)')
+    plt.title(f'Average HG with Error Bars at {selected_frequency} GHz')
+    plt.legend()
+    plt.grid(True)
+
+    # Add interactive cursor
+    cursor = mplcursors.cursor(hover=True)
+    cursor.connect("add", lambda sel: sel.annotation.set_text(f'Thickness: {thickness[sel.index]} mm\nAvg HG: {avg_hg[sel.index]:.2f} mV\nStd Dev: {std_hg[sel.index]:.2f} mV'))
+
+    # Add button to hide/show legend
+    def toggle_legend(event):
+        legend = plt.gca().get_legend()
+        legend.set_visible(not legend.get_visible())
+        plt.draw()
+
+    ax_button = plt.axes([0.81, 0.01, 0.1, 0.075])
+    button = Button(ax_button, 'Toggle Legend')
+    button.on_clicked(toggle_legend)
+
+    # Save the plot
+    save_dir = os.path.join(os.path.dirname(files[0]), 'plots')
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    base_name = f'avg_hg_{selected_frequency}GHz'
+    save_path = os.path.join(save_dir, f'{base_name}.png')
+    plt.savefig(save_path, dpi=300)
+    print(f"Plot saved as: {save_path}")
+
+    plt.show()
+
+        # Read csv files
+    if os.path.isdir(file_or_directory):
+        files = [os.path.join(file_or_directory, f) for f in os.listdir(file_or_directory) if f.endswith('.csv')]
+    else:
+        files = [file_or_directory]
+
+    data_frames = []
+    for file in files:
+        df = pd.read_csv(file, delimiter=';')
+        data_frames.append(df)
+
+    # Concatenate all data frames
+    df = pd.concat(data_frames, ignore_index=True)
+
+    # Filter the dataframe for the selected frequency
+    df_filtered = df[df['Frequency (GHz)'] == selected_frequency]
+
+    # Calculate the average and standard deviation of HG for each sample
+    if selected_samples is None:
+        selected_samples = df_filtered['Sample'].unique()
+
+    avg_hg = []
+    std_hg = []
+    thickness = []
+
+    for sample in selected_samples:
+        sample_df = df_filtered[df_filtered['Sample'] == sample]
+        avg_hg.append(sample_df['HG (mV)'].mean())
+        std_hg.append(sample_df['HG (mV)'].std())
+        thickness.append(sample_df['Thickness (mm))'].iloc[0])  # Assuming thickness is constant for each sample
+
+    # Plot the data
+    plt.figure(figsize=(12, 6))
+    plt.errorbar(thickness, avg_hg, yerr=std_hg, fmt='o', capsize=5, label='HG (mV)')
+
+    plt.xlabel('Thickness (mm))')
+    plt.ylabel('Average HG (mV)')
+    plt.title(f'Average HG with Error Bars at {selected_frequency} GHz')
+    plt.legend()
+    plt.grid(True)
+
+    # Add interactive cursor
+    cursor = mplcursors.cursor(hover=True)
+    cursor.connect("add", lambda sel: sel.annotation.set_text(f'Thickness: {thickness[sel.index]} mm\nAvg HG: {avg_hg[sel.index]:.2f} mV\nStd Dev: {std_hg[sel.index]:.2f} mV'))
+
+    # Add button to hide/show legend
+    def toggle_legend(event):
+        legend = plt.gca().get_legend()
+        legend.set_visible(not legend.get_visible())
+        plt.draw()
+
+    ax_button = plt.axes([0.81, 0.01, 0.1, 0.075])
+    button = Button(ax_button, 'Toggle Legend')
+    button.on_clicked(toggle_legend)
+
+    # Save the plot
+    save_dir = os.path.join(os.path.dirname(files[0]), 'plots')
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    base_name = f'avg_hg_{selected_frequency}GHz'
+    save_path = os.path.join(save_dir, f'{base_name}.png')
+    plt.savefig(save_path, dpi=300)
+    print(f"Plot saved as: {save_path}")
+
+    plt.show()
+
+def plot_3d_thickness_frequency(file_or_directory, selected_samples=None):
+    # Read csv files
+    if os.path.isdir(file_or_directory):
+        files = [os.path.join(file_or_directory, f) for f in os.listdir(file_or_directory) if f.endswith('.csv')]
+    else:
+        files = [file_or_directory]
+
+    data_frames = []
+    for file in files:
+        df = pd.read_csv(file, delimiter=';')
+        data_frames.append(df)
+
+    # Concatenate all data frames
+    df = pd.concat(data_frames, ignore_index=True)
+
+    # Calculate the average and standard deviation of HG for each sample and frequency
+    if selected_samples is None:
+        selected_samples = df['Sample'].unique()
+
+    avg_hg = []
+    std_hg = []
+    thickness = []
+    frequencies = []
+
+    for sample in selected_samples:
+        sample_df = df[df['Sample'] == sample]
+        for frequency in sample_df['Frequency (GHz)'].unique():
+            freq_df = sample_df[sample_df['Frequency (GHz)'] == frequency]
+            avg_hg.append(freq_df['HG (mV)'].mean())
+            std_hg.append(freq_df['HG (mV)'].std())
+            thickness.append(freq_df['Thickness (mm)'].iloc[0])  # Assuming thickness is constant for each sample
+            frequencies.append(frequency)
+
+    # Plot the data in 3D
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    sc = ax.scatter(thickness, frequencies, avg_hg, c=avg_hg, cmap='viridis', marker='o')
+
+    ax.set_xlabel('Thickness (mm)')
+    ax.set_ylabel('Frequency (GHz)')
+    ax.set_zlabel('Average HG (mV)')
+    ax.set_title('3D Plot of Average HG with Thickness and Frequency')
+
+    # Add color bar
+    cbar = plt.colorbar(sc, ax=ax, pad=0.1)
+    cbar.set_label('Average HG (mV)')
+
+    plt.show()
+    
+
 def main():
     parser = argparse.ArgumentParser(description="Plot spectroscopy data.")
     subparsers = parser.add_subparsers(dest="command")
@@ -300,12 +485,13 @@ def main():
 
 if __name__ == "__main__":
 
-    input = '../../data/experiment_2_plastics/processed/'
+    input = '../../data/experiment_1_plastics/processed_last_30s/clean/merged.csv'
 
     # plot_data_heatmap(input, channel_indices = [1,2], plot_together=True)
 
-    selected_samples = ['E1_1', 'E1_2']
-    plot_transmittance(input, selected_samples=selected_samples)
+    selected_samples = ['E1', 'H1']
+    # plot_thickness(input, selected_frequency=350)
+    plot_3d_thickness_frequency(input, selected_samples=selected_samples)
 
     # main()
     
