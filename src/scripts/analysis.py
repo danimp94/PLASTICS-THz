@@ -3,6 +3,7 @@ import pandas as pd
 from scipy.fft import fft, ifft, fftfreq 
 from scipy.signal import detrend
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 
 def fft_analysis(predefined_frequency): #NOT WORKING
     # Read csv file
@@ -116,7 +117,37 @@ def analyze_spectrum(predefined_frequency): #NOT WORKING
     plt.tight_layout()
     plt.show()
 
+def pca_analysis(input): #NOT WORKING
+    
+    # Load the data
+    df = pd.read_csv(input, delimiter=';')
+    df['Sample'] = df['Sample'].astype('category') # Convert 'Sample' column to categorical type
+
+    #Select only desired columns
+    df = df[['Frequency (GHz)', 'LG (mV) mean', 'HG (mV) mean', 'Thickness (mm)', 'Sample']]
+
+    # Filter Sample category
+    df = df[df['Sample'] == 'C1']
+
+    # Select only the numeric columns for PCA
+    numeric_columns = df.select_dtypes(include=[float, int]).columns
+    df_numeric = df[numeric_columns]
+
+    # Perform PCA -- FIX HERE
+    pca = PCA(n_components=2)
+    pca.fit(df_numeric)
+    print(pca.components_)
+    pca_result = pca.fit_transform(df_numeric)
+
+    # Plot the PCA result
+    plt.figure(figsize=(8, 6))
+    plt.scatter(pca_result[:, 0], pca_result[:, 1], c='b', marker='o')
+    plt.title('PCA Analysis')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.show()
 
 if __name__ == "__main__":
-    predefined_frequency = 240 # Replace with the actual predefined frequency value
-    analyze_spectrum(predefined_frequency)
+    input = '../../data/experiment_1_plastics/processed_27s/All_samples_dispersion.csv'
+
+    pca_analysis(input)
