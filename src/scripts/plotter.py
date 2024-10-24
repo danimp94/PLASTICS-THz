@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import argparse
 import mplcursors
 from matplotlib.widgets import Button
@@ -173,7 +174,7 @@ def plot_data_overlay_average(file_or_directory, channel_indices):
 
     plt.show()
 
-def plot_transmittance(file_or_directory, selected_samples=None):
+def plot_transmittance(file_or_directory, selected_samples=None, channel_indices=None):
     data_files = get_files(file_or_directory)
     
     # If no samples are selected, use all files as samples
@@ -264,8 +265,8 @@ def plot_transmittance(file_or_directory, selected_samples=None):
 
     plt.show() 
 
-def plot_thickness(file_or_directory, selected_frequency, selected_samples=None):
-        # Read csv files
+def plot_thickness(file_or_directory, selected_frequency, selected_samples=None, channel_index='HG (mV)'):
+    # Read csv files
     if os.path.isdir(file_or_directory):
         files = [os.path.join(file_or_directory, f) for f in os.listdir(file_or_directory) if f.endswith('.csv')]
     else:
@@ -282,33 +283,36 @@ def plot_thickness(file_or_directory, selected_frequency, selected_samples=None)
     # Filter the dataframe for the selected frequency
     df_filtered = df[df['Frequency (GHz)'] == selected_frequency]
 
-    # Calculate the average and standard deviation of HG for each sample
+    # Calculate the average and standard deviation of the selected channel for each sample
     if selected_samples is None:
         selected_samples = df_filtered['Sample'].unique()
 
-    avg_hg = []
-    std_hg = []
+    avg_values = []
+    std_values = []
     thickness = []
 
     for sample in selected_samples:
         sample_df = df_filtered[df_filtered['Sample'] == sample]
-        avg_hg.append(sample_df['HG (mV)'].mean())
-        std_hg.append(sample_df['HG (mV)'].std())
+        avg_values.append(sample_df[channel_index].mean())
+        std_values.append(sample_df[channel_index].std())
         thickness.append(sample_df['Thickness (mm)'].iloc[0])  # Assuming thickness is constant for each sample
 
     # Plot the data
     plt.figure(figsize=(12, 6))
-    plt.errorbar(thickness, avg_hg, yerr=std_hg, fmt='o', capsize=5, label='HG (mV)')
+    plt.errorbar(thickness, avg_values, yerr=std_values, fmt='o', capsize=5, label=channel_index)
 
     plt.xlabel('Thickness (mm)')
-    plt.ylabel('Average HG (mV)')
-    plt.title(f'Average HG with Error Bars at {selected_frequency} GHz')
+    plt.ylabel(f'Average {channel_index}')
+    plt.title(f'Average {channel_index} with Error Bars at {selected_frequency} GHz')
     plt.legend()
     plt.grid(True)
 
+    # Set constant scale
+    plt.ylim(-200, 2000)
+
     # Add interactive cursor
     cursor = mplcursors.cursor(hover=True)
-    cursor.connect("add", lambda sel: sel.annotation.set_text(f'Thickness: {thickness[sel.index]} mm\nAvg HG: {avg_hg[sel.index]:.2f} mV\nStd Dev: {std_hg[sel.index]:.2f} mV'))
+    cursor.connect("add", lambda sel: sel.annotation.set_text(f'Thickness: {thickness[sel.index]} mm\nAvg {channel_index}: {avg_values[sel.index]:.2f} mV\nStd Dev: {std_values[sel.index]:.2f} mV'))
 
     # Add button to hide/show legend
     def toggle_legend(event):
@@ -325,74 +329,7 @@ def plot_thickness(file_or_directory, selected_frequency, selected_samples=None)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    base_name = f'avg_hg_{selected_frequency}GHz'
-    save_path = os.path.join(save_dir, f'{base_name}.png')
-    plt.savefig(save_path, dpi=300)
-    print(f"Plot saved as: {save_path}")
-
-    plt.show()
-
-        # Read csv files
-    if os.path.isdir(file_or_directory):
-        files = [os.path.join(file_or_directory, f) for f in os.listdir(file_or_directory) if f.endswith('.csv')]
-    else:
-        files = [file_or_directory]
-
-    data_frames = []
-    for file in files:
-        df = pd.read_csv(file, delimiter=';')
-        data_frames.append(df)
-
-    # Concatenate all data frames
-    df = pd.concat(data_frames, ignore_index=True)
-
-    # Filter the dataframe for the selected frequency
-    df_filtered = df[df['Frequency (GHz)'] == selected_frequency]
-
-    # Calculate the average and standard deviation of HG for each sample
-    if selected_samples is None:
-        selected_samples = df_filtered['Sample'].unique()
-
-    avg_hg = []
-    std_hg = []
-    thickness = []
-
-    for sample in selected_samples:
-        sample_df = df_filtered[df_filtered['Sample'] == sample]
-        avg_hg.append(sample_df['HG (mV)'].mean())
-        std_hg.append(sample_df['HG (mV)'].std())
-        thickness.append(sample_df['Thickness (mm))'].iloc[0])  # Assuming thickness is constant for each sample
-
-    # Plot the data
-    plt.figure(figsize=(12, 6))
-    plt.errorbar(thickness, avg_hg, yerr=std_hg, fmt='o', capsize=5, label='HG (mV)')
-
-    plt.xlabel('Thickness (mm))')
-    plt.ylabel('Average HG (mV)')
-    plt.title(f'Average HG with Error Bars at {selected_frequency} GHz')
-    plt.legend()
-    plt.grid(True)
-
-    # Add interactive cursor
-    cursor = mplcursors.cursor(hover=True)
-    cursor.connect("add", lambda sel: sel.annotation.set_text(f'Thickness: {thickness[sel.index]} mm\nAvg HG: {avg_hg[sel.index]:.2f} mV\nStd Dev: {std_hg[sel.index]:.2f} mV'))
-
-    # Add button to hide/show legend
-    def toggle_legend(event):
-        legend = plt.gca().get_legend()
-        legend.set_visible(not legend.get_visible())
-        plt.draw()
-
-    ax_button = plt.axes([0.81, 0.01, 0.1, 0.075])
-    button = Button(ax_button, 'Toggle Legend')
-    button.on_clicked(toggle_legend)
-
-    # Save the plot
-    save_dir = os.path.join(os.path.dirname(files[0]), 'plots')
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-
-    base_name = f'avg_hg_{selected_frequency}GHz'
+    base_name = f'avg_{channel_index.replace(" ", "_")}_{selected_frequency}GHz'
     save_path = os.path.join(save_dir, f'{base_name}.png')
     plt.savefig(save_path, dpi=300)
     print(f"Plot saved as: {save_path}")
@@ -489,9 +426,15 @@ if __name__ == "__main__":
 
     # plot_data_heatmap(input, channel_indices = [1,2], plot_together=True)
 
-    selected_samples = ['E1', 'H1']
-    # plot_thickness(input, selected_frequency=350)
-    plot_3d_thickness_frequency(input, selected_samples=selected_samples)
+    # selected_samples = ['REF', 'A1', 'C1']
+    for i in range(100, 600, 10):
+        selected_frequency = i 
+        print(f"Plotting data for frequency: {selected_frequency} GHz")
+        plot_thickness(input, selected_frequency=selected_frequency, channel_index='HG (mV)')
+
+        # plt.close()  # Close the plot to avoid overlapping of multiple plots
+
+    # plot_3d_thickness_frequency(input, selected_samples=selected_samples)
 
     # main()
     
