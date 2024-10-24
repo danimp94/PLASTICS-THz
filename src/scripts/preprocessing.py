@@ -233,31 +233,25 @@ def calculate_transmittance(input_file, output_dir):
 def calculate_averages_and_dispersion(input_path, data_percentage=5, output_path=None):
     def process_file(input_file, output_file):
         df = pd.read_csv(input_file, delimiter=';')
-        freq_counts = df['Frequency (GHz)'].value_counts().sort_index()
-        freq_counts = freq_counts.reset_index()
-        freq_counts.columns = ['Frequency (GHz)', 'count']
-        freq_counts['window_size'] = (freq_counts['count'] * data_percentage / 100).astype(int)
         results = []
-        for _, row in freq_counts.iterrows():
-            freq = row['Frequency (GHz)']
-            window_size = int(row['window_size'])
-            print(f"Processing frequency: {freq} with window size: {window_size}")
-            if window_size < 1:
-                window_size = 1
-            freq_data = df[df['Frequency (GHz)'] == freq]
-            for start in range(0, len(freq_data), window_size):
-                window_data = freq_data.iloc[start:start + window_size]
+        for (sample, freq), group in df.groupby(['Sample', 'Frequency (GHz)']):
+            window_size = max(1, int(len(group) * data_percentage / 100))
+            print(f"Processing sample: {sample}, frequency: {freq} with window size: {window_size}")
+            for start in range(0, len(group), window_size):
+                window_data = group.iloc[start:start + window_size]
                 mean_values = window_data[['LG (mV)', 'HG (mV)']].mean()
                 std_deviation_values = window_data[['LG (mV)', 'HG (mV)']].std()
                 variance_values = window_data[['LG (mV)', 'HG (mV)']].var()
                 results.append({
+                    'Sample': sample,
                     'Frequency (GHz)': freq,
                     'LG (mV) mean': mean_values['LG (mV)'],
                     'HG (mV) mean': mean_values['HG (mV)'],
                     'LG (mV) std deviation': std_deviation_values['LG (mV)'],
                     'HG (mV) std deviation': std_deviation_values['HG (mV)'],
                     'LG (mV) variance': variance_values['LG (mV)'],
-                    'HG (mV) variance': variance_values['HG (mV)']
+                    'HG (mV) variance': variance_values['HG (mV)'],
+                    'Thickness (mm)': window_data['Thickness (mm)'].iloc[0]
                 })
         results_df = pd.DataFrame(results)
         results_df.to_csv(output_file, sep=';', index=False)
@@ -373,10 +367,10 @@ if __name__ == "__main__":
     # Processing pipeline (from /src/scripts directory):
     # Input file path
     # input = "../../data/experiment_2_plastics/raw/"
-    input = "../../data/experiment_1_plastics/processed_last_30s/clean/"
+    input = "../../data/experiment_1_plastics/processed_27s/merged.csv"
 
     # # Output directory
-    output = "../../data/experiment_1_plastics/processed_last_30s/clean/"
+    output = "../../data/experiment_1_plastics/processed_27s/"
 
     # # Process files
     # channel_names = ["Frequency (GHz)", "LG (mV)", "HG (mV)", "Thickness (mm)"]
@@ -386,7 +380,10 @@ if __name__ == "__main__":
     # process_files(input, output, discard_first_percentage, discard_last_percentage, channel_names)
 
     # Merge files
-    merge_files(output, os.path.join(output, 'merged.csv'))
+    # merge_files(output, os.path.join(output, 'merged.csv'))
+
+    # Calculate averages and dispersion for each frequency
+    calculate_averages_and_dispersion(input, data_percentage=100, output_path=os.path.join(output, 'dispersion.csv'))
 
     # time_window = 1 # Time window in seconds
     # data_percentage = time_window*100/12
