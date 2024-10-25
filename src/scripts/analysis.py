@@ -128,24 +128,43 @@ def pca_analysis(input): #NOT WORKING
 
     # Filter Sample category
     df = df[df['Sample'] == 'C1']
+    df = df[['Frequency (GHz)', 'LG (mV) mean', 'HG (mV) mean', 'Thickness (mm)', 'Sample']]
 
     # Select only the numeric columns for PCA
     numeric_columns = df.select_dtypes(include=[float, int]).columns
-    df_numeric = df[numeric_columns]
+    print(numeric_columns)
+    df_numeric = df[numeric_columns].values
 
-    # Perform PCA -- FIX HERE
+    # Perform PCA
     pca = PCA(n_components=2)
     pca.fit(df_numeric)
+    
+    # Print the components and the explained variance
+    print("PCA Components:")
     print(pca.components_)
-    pca_result = pca.fit_transform(df_numeric)
+    print("Explained Variance Ratio:")
+    print(pca.explained_variance_ratio_)
+    
+    # Determine which original components have more weight
+    most_important_features = np.abs(pca.components_).argmax(axis=1)
+    feature_names = numeric_columns[most_important_features]
+    print("Most important features for each principal component:")
+    for i, feature in enumerate(feature_names):
+        print(f"Principal Component {i+1}: {feature}")
 
-    # Plot the PCA result
-    plt.figure(figsize=(8, 6))
-    plt.scatter(pca_result[:, 0], pca_result[:, 1], c='b', marker='o')
-    plt.title('PCA Analysis')
-    plt.xlabel('Principal Component 1')
-    plt.ylabel('Principal Component 2')
+    # Transform the data using PCA
+    X_pca = pca.transform(df_numeric)
+    print("Original shape:   ", df_numeric.shape)
+    print("Transformed shape:", X_pca.shape)    
+
+    # Inverse transform the PCA result
+    X_new = pca.inverse_transform(X_pca)
+    plt.scatter(df_numeric[:, 0], df_numeric[:, 1], alpha=0.2)
+    plt.scatter(X_new[:, 0], X_new[:, 1], alpha=0.8)
+    plt.axis('equal')
     plt.show()
+
+
 
 if __name__ == "__main__":
     input = '../../data/experiment_1_plastics/processed_27s/All_samples_dispersion.csv'
