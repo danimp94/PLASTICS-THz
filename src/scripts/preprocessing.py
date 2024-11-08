@@ -366,11 +366,11 @@ if __name__ == "__main__":
 
     # Processing pipeline (from /src/scripts directory):
     # Input file path
-    # input = "../../data/experiment_2_plastics/raw/"
-    input = "../../data/experiment_1_plastics/processed_27s/merged.csv"
+    # input = "../../data/experiment_1_plastics/raw/"
+    input = "../../data/experiment_1_plastics/processed_27s/"
 
     # # Output directory
-    output = "../../data/experiment_1_plastics/processed_27s/"
+    output = "../../data/experiment_1_plastics/processed_27s/training_file/"
 
     # # Process files
     # channel_names = ["Frequency (GHz)", "LG (mV)", "HG (mV)", "Thickness (mm)"]
@@ -380,10 +380,10 @@ if __name__ == "__main__":
     # process_files(input, output, discard_first_percentage, discard_last_percentage, channel_names)
 
     # Merge files
-    # merge_files(output, os.path.join(output, 'merged.csv'))
+    merge_files(input, os.path.join(output, 'merged_2.csv'))
 
     # Calculate averages and dispersion for each frequency
-    calculate_averages_and_dispersion(input, data_percentage=100, output_path=os.path.join(output, 'dispersion.csv'))
+    # calculate_averages_and_dispersion(input, data_percentage=100, output_path=os.path.join(output, 'dispersion.csv'))
 
     # time_window = 1 # Time window in seconds
     # data_percentage = time_window*100/12
