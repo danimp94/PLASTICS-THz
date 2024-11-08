@@ -83,3 +83,8 @@ wheels/
 # Built Visual Studio Code Extensions
 *.vsix
 .vscode/extensions.json
+
+# Colab Notebooks
+.ipynb_checkpoints
+
+
