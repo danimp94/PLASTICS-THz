@@ -12,6 +12,10 @@
   - Test 9: Sweep without sample --> REF_9
   - Test 10: Sweep without sample --> REF_10 (All frequencies) 
   - Test 11: Sweep without sample --> REF_11 (All frequencies)
+  - Test 12: Sweep without sample --> REF_12 (All frequencies)
+  - Test 13: Sweep without sample --> REF_13 (All frequencies)
+  - Test 14: Sweep without sample --> REF_14 (All frequencies)
+  - Test 15: Sweep without sample --> REF_15 (All frequencies)
 
 
   All tests are carried out in 2 steps:
@@ -23,8 +27,9 @@
 
 ## Date
 - 21/11/2024 - Test 1 to 4 (25.5ºC, 37.7 %RH)
-- 26/11/2024 - Test 5* (21.7ºC, 41.0 %RH), Test 6 (22.1ºC, 40.8 %RH), Test 7 (23.0ºC, 40.0 %RH), Test 8 (23.5ºC, 39.3 %RH), Test 9 (23.9ºC, 37.8 %RH) 
-- 26/11/2024 - Test 10* (23.2ºC, 36.7ºC), Test 11 (23.8ºC, 36.8 %RH) 
+- 26/11/2024 (Morning) - Test 5* (21.7ºC, 41.0 %RH), Test 6 (22.1ºC, 40.8 %RH), Test 7 (23.0ºC, 40.0 %RH), Test 8 (23.5ºC, 39.3 %RH), Test 9 (23.9ºC, 37.8 %RH) 
+- 26/11/2024 (Afternoon) - Test 10* (23.2ºC, 36.7ºC), Test 11 (23.8ºC, 36.8 %RH) 
+- 27/11/2024 (30min setup working) - Test 12 (23.2ºC, 33.3 %RH), Test 13 (23.7ºC, 33.3 %RH), Test 14 (24.1ºC, 30.4 %RH), Test 15 (24.3ºC, 30.5 %RH)
 
 
 
