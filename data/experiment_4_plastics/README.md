@@ -1,4 +1,4 @@
-# Experiment 3
+# Experiment 4
 
 ## Description
   - Test 1: Sweep without sample --> REF_1
@@ -25,6 +25,12 @@
 - **Experiment Variables**: // Define the independent and dependent variables, and any controlled variables.
 
 ## **Sample/Material**: 
+
+| Sample | Description | Image |
+|:------:|-------------|-------|
+| B      | PE/tie/EVOH/tie/PE (Admer AT1707E) (0.57mm) | <img src="../../img/B1.jpg" alt="Sample B" width="200"/> |
+| C      | ABS+PC (2.05mm) **white; opaque| <img src="../../img/C1.jpg" alt="Sample C" width="200"/> |
+| E      | Ecovio/PVOH/Ecovio (0.1mm per layer) *Available E2 (2x layers) and E3 (1x layer) | <img src="../../img/E1.jpg" alt="Sample E" width="200"/> |
 
 ## Data Collection
 - **Frequency/Interval**: Integration Time = 20ms
