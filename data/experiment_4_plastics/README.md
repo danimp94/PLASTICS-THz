@@ -25,12 +25,19 @@
 ## Date
 -- 03/12/2024 - Test 1 (24.5ºC, 40.0 %RH), Test 2 (24.2ºC, 40.6 %RH), Test 3 (24.9ºC, 41.1 %RH), Test 4 (24.8ºC, 38.5 %RH), Test 5 (24.8ºC, 40.9 %RH), Test ( 6 (25.0ºC, 40.7 %RH), Test 7 (25.3ºC, 40.8 %RH)
 -- 05/12/2024 - Test 8 
+
 ## Setup
 - **Equipment Used**: Spectroscopy setup with PCA and Schottky detector
 - **Environment**: // Any specific environmental conditions (e.g., temperature, humidity, etc.)
 - **Experiment Variables**: // Define the independent and dependent variables, and any controlled variables.
 
 ## **Sample/Material**: 
+
+| Sample | Description | Image |
+|:------:|-------------|-------|
+| B      | PE/tie/EVOH/tie/PE (Admer AT1707E) (0.57mm) | <img src="../../img/B1.jpg" alt="Sample B" width="200"/> |
+| C      | ABS+PC (2.05mm) **white; opaque| <img src="../../img/C1.jpg" alt="Sample C" width="200"/> |
+| E      | Ecovio/PVOH/Ecovio (0.1mm per layer) *Available E2 (2x layers) and E3 (1x layer) | <img src="../../img/E1.jpg" alt="Sample E" width="200"/> |
 
 ## Data Collection
 - **Frequency/Interval**: Integration Time = 20ms
