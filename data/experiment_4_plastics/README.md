@@ -24,7 +24,7 @@
 
 ## Date
 -- 03/12/2024 - Test 1 (24.5ºC, 40.0 %RH), Test 2 (24.2ºC, 40.6 %RH), Test 3 (24.9ºC, 41.1 %RH), Test 4 (24.8ºC, 38.5 %RH), Test 5 (24.8ºC, 40.9 %RH), Test ( 6 (25.0ºC, 40.7 %RH), Test 7 (25.3ºC, 40.8 %RH)
--- 05/12/2024 - Test 8 (22.0ºC, 33.8 %RH), Test 9 (22.8ºC, 32.4 %RH), Test 10 (23.2ºC. 32.6 %RH), Test 11* (24.1ºC, 32.8 %RH), Test 12 (24.4ºC, 31.7 %RH), Test 13 (24.0ºC, 30.9 %RH), Test 14 (23.9ºC, 31.8 %RH), Test 15 (23.7ºC, 33.0 %RH)
+-- 05/12/2024 - Test 8 (22.0ºC, 33.8 %RH), Test 9 (22.8ºC, 32.4 %RH), Test 10 (23.2ºC. 32.6 %RH), Test 11* (24.1ºC, 32.8 %RH), Test 12 (24.4ºC, 31.7 %RH), Test 13 (24.0ºC, 30.9 %RH), Test 14 (23.9ºC, 31.8 %RH), Test 15 (23.7ºC, 33.4 %RH)
 *Tiempo de espera de +20 min entre Test 10-11 y 13-14
 
 ## Setup
