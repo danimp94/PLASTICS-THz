@@ -1,4 +1,4 @@
-# Experiment 3
+# Experiment 4
 
 ## Description
   - Test 1: Sweep without sample --> REF_1
@@ -24,7 +24,8 @@
 
 ## Date
 -- 03/12/2024 - Test 1 (24.5ºC, 40.0 %RH), Test 2 (24.2ºC, 40.6 %RH), Test 3 (24.9ºC, 41.1 %RH), Test 4 (24.8ºC, 38.5 %RH), Test 5 (24.8ºC, 40.9 %RH), Test ( 6 (25.0ºC, 40.7 %RH), Test 7 (25.3ºC, 40.8 %RH)
--- 05/12/2024 - Test 8 
+-- 05/12/2024 - Test 8 (22.0ºC, 33.8 %RH), Test 9 (22.8ºC, 32.4 %RH), Test 10 (23.2ºC. 32.6 %RH), Test 11* (24.1ºC, 32.8 %RH), Test 12 (24.4ºC, 32.3 %RH)
+*Tiempo de espera de +20 min entre Test 10 y 11
 
 ## Setup
 - **Equipment Used**: Spectroscopy setup with PCA and Schottky detector
