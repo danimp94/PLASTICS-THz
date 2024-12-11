@@ -1,7 +1,7 @@
 # Experiment 4
 
 ## Description
-<<<<<<< Updated upstream
+
 =======
   - Test 1: Sweep without sample --> REF_1
   - Test 2: Sweep with sample B1 --> B1_2
@@ -20,35 +20,6 @@
   - Test 15: Sweep without sample --> REF_15
   - Test 16: Sweep without sample --> REF_16
   - Test 17: Sweep with sample B1 --> B1_17
->>>>>>> Stashed changes
-
-- Test 1: Sweep without sample --> REF_1
-
-- Test 2: Sweep with sample B1 --> B1_2
-
-- Test 3: Sweep with sample E3 --> E3_3
-
-- Test 4: Sweep with sample C1 --> C1_4
-
-- Test 5: Sweep with sample B1 --> B1_5
-
-- Test 6: Sweep with sample E3 --> E3_6
-
-- Test 7: Sweep with sample C1 --> C1_7
-
-- Test 8: Sweep without sample --> REF_8
-
-- Test 9: Sweep with sample B1 --> B1_9
-
-- Test 10: Sweep with sample E3 --> E3_10
-
-- Test 11: Sweep with sample C1 --> C1_11
-
-- Test 12: Sweep with sample B1 --> B1_12
-
-- Test 13: Sweep with sample E3 --> E3_13
-
-- Test 14: Sweep with sample C1 --> C1_14
   
   All tests are carried out in 2 steps:
   
@@ -74,9 +45,11 @@
   - Test 13* (24.0ºC, 30.9 %RH)
   - Test 14 (23.9ºC, 31.8 %RH)
   - Test 15 (23.7ºC, 33.4 %RH)
+- 11/12/2024:
+  - Test 16 (20.2ºC, 29.5 %RH)
 
 *Tiempo de espera de +20 min entre Test 10-11 y 13-14
--- 11/12/2024 - Test 16 (20.2ºC, 29.5 %RH), 
+
 
 ## Setup
 
