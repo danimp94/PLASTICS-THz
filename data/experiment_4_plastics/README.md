@@ -2,7 +2,6 @@
 
 ## Description
 
-=======
   - Test 1: Sweep without sample --> REF_1
   - Test 2: Sweep with sample B1 --> B1_2
   - Test 3: Sweep with sample E3 --> E3_3
@@ -20,6 +19,7 @@
   - Test 15: Sweep without sample --> REF_15
   - Test 16: Sweep without sample --> REF_16
   - Test 17: Sweep with sample B1 --> B1_17
+  - Test 18: Sweep with sample E3 --> E3_18
   
   All tests are carried out in 2 steps:
   
@@ -47,6 +47,9 @@
   - Test 15 (23.7ºC, 33.4 %RH)
 - 11/12/2024:
   - Test 16 (20.2ºC, 29.5 %RH)
+  - Test 17 (21.1ºC, 29.1 %RH)
+  - Test 18 (22.1ºC, 28.5 %RH)
+  - Test 19 (22.7ºC, 28.1 %RH)
 
 *Tiempo de espera de +20 min entre Test 10-11 y 13-14
 
