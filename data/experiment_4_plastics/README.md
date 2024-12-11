@@ -20,6 +20,9 @@
   - Test 16: Sweep without sample --> REF_16
   - Test 17: Sweep with sample B1 --> B1_17
   - Test 18: Sweep with sample E3 --> E3_18
+  - Test 19: Sweep with sample C1 --> C1_19
+  - Test 20: Sweep with sample B1 --> B1_20
+  - Test 21: Sweep with sample E3 --> E3_21
   
   All tests are carried out in 2 steps:
   
@@ -50,6 +53,8 @@
   - Test 17 (21.1ºC, 29.1 %RH)
   - Test 18 (22.1ºC, 28.5 %RH)
   - Test 19 (22.7ºC, 28.1 %RH)
+  - Test 20 (22.8ºC, 28.5 %RH)
+  - Test 21 (22.7ºC, 28.2 %RH)
 
 *Tiempo de espera de +20 min entre Test 10-11 y 13-14
 
