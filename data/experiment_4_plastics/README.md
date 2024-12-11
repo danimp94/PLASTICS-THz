@@ -23,6 +23,8 @@
   - Test 19: Sweep with sample C1 --> C1_19
   - Test 20: Sweep with sample B1 --> B1_20
   - Test 21: Sweep with sample E3 --> E3_21
+  - Test 22: Sweep with sample C1 --> C1_22
+  - Test 23: Sweep without sample --> REF_23
   
   All tests are carried out in 2 steps:
   
@@ -55,6 +57,8 @@
   - Test 19 (22.7ºC, 28.1 %RH)
   - Test 20 (22.8ºC, 28.5 %RH)
   - Test 21 (22.7ºC, 28.2 %RH)
+  - Test 22 (22.4ºC, 27.6 %RH)
+  - Test 23 (22.5ºC, 26.7 %RH)
 
 *Tiempo de espera de +20 min entre Test 10-11 y 13-14
 
