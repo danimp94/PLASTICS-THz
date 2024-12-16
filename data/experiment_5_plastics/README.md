@@ -8,6 +8,8 @@
   - Test 4: Sweep with sample D1 --> D1_4
   - Test 5: Sweep with sample E1 --> E1_5
   - Test 6: Sweep with sample F1 --> F1_6
+  - Test 7: Sweep with sample G1 --> G1_7
+  - Test 8: Sweep with sample H1 --> H1_8
   
   All tests are carried out in 2 steps:
   
@@ -23,6 +25,8 @@
   - Test 4 (21.5ºC, 34.2 %RH)
   - Test 5 (22.0ºC, 34.0 %RH)
   - Test 6 (22.4ºC, 33.5 %RH)
+  - Test 7 (22.6ºC, 32.8 %RH)
+  - Test 8 (22.6ºC, 32.6 %RH)
 
 ## Setup
 
@@ -44,7 +48,6 @@
 | H      | PP/tie/EVOH/tie/PP (0.07mm) 				                            | <img src="../../img/H1.jpg" alt="Sample H" width="200"/> |
 | I      | PS (0.36mm) **scratched                                                          | <img src="../../img/I1.jpg" alt="Sample I" width="200"/> |
 | J      | LDPE (0.07mm) **wrinkled                                                         | <img src="../../img/J1.jpg" alt="Sample J" width="200"/> |
-| K      | PC (2.25mm) **half-section                                                       | <img src="../../img/K1.jpg" alt="Sample K" width="200"/> |
 | L      | PVC (1.85mm) **opaque; white; half-section                                       | <img src="../../img/L1.jpg" alt="Sample L" width="200"/> |
 | O      | PET										    | <img src="../../img/O1.jpg" alt="Sample O" width="200"/> |
 
