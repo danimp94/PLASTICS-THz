@@ -24,6 +24,10 @@
   - Test 18: Sweep with sample F2 --> F2_18
   - Test 19: Sweep with sample G3 --> G2_19
   - Test 20: Sweep with sample H2 --> H2_20
+  - Test 21: Sweep with sample I2 --> I2_21
+  - Test 22: Sweep with sample J2 --> J2_22
+  - Test 23: Sweep with sample L2 --> L2_23
+  - Test 24: Sweep with sample O2 --> O2_24
   
   All tests are carried out in 2 steps:
   
@@ -53,6 +57,12 @@
   - Test 16 (22.1ºC, 32.7 %RH)
   - Test 17 (22.7ºC, 31.8 %RH)
   - Test 18 (22.8ºC, 31.4 %RH)
+  - Test 19 (22.7ºC, 31.0 %RH)
+  - Test 20 (22.8ºC, 31.0 %RH)
+  - Test 21 (22.7ºC, 31.0 %RH)
+  - Test 22 (22.6ºC, 31.0 %RH)
+  - Test 23 (22.6ºC, 31.3 %RH)
+  - Test 24 ()
 
 ## Setup
 
