@@ -2,6 +2,7 @@
 
 ## Description
 
+- Day 1:
   - Test 1: Sweep with sample A1 --> A1_1
   - Test 2: Sweep with sample B1 --> B1_2
   - Test 3: Sweep with sample C1 --> C1_3
@@ -14,6 +15,15 @@
   - Test 10: Sweep with sample J1 --> J1_10
   - Test 11: Sweep with sample L1 --> L1_11
   - Test 12: Sweep with sample O1 --> O1_12
+- Day 2:
+  - Test 13: Sweep with sample A2 --> A2_13
+  - Test 14: Sweep with sample B2 --> B2_14
+  - Test 15: Sweep with sample C2 --> C2_15
+  - Test 16: Sweep with sample D2 --> D2_16
+  - Test 17: Sweep with sample E3 --> E2_17
+  - Test 18: Sweep with sample F2 --> F2_18
+  - Test 19: Sweep with sample G3 --> G2_19
+  - Test 20: Sweep with sample H2 --> H2_20
   
   All tests are carried out in 2 steps:
   
@@ -35,6 +45,14 @@
   - Test 10 (22.4ºC, 31.3 %RH)
   - Test 11 (22.4ºC, 31.4 %RH)
   - Test 12 (22.4ºC, 31.0 %RH)
+
+-17/12/2024:
+  - Test 13 (20.0ºC, 32.2 %RH)
+  - Test 14 (21.0ºC, 33.3 %RH)
+  - Test 15 (21.5ºC, 33.6 %RH)
+  - Test 16 (22.1ºC, 32.7 %RH)
+  - Test 17 (22.7ºC, 31.8 %RH)
+  - Test 18 (22.8ºC, 31.4 %RH)
 
 ## Setup
 
