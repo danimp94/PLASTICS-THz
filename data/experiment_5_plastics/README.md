@@ -28,6 +28,20 @@
   - Test 22: Sweep with sample J2 --> J2_22
   - Test 23: Sweep with sample L2 --> L2_23
   - Test 24: Sweep with sample O2 --> O2_24
+- Day 3:
+  - Test 25: Sweep with sample A3 --> A3_25
+  - Test 26: Sweep with sample B3 --> B3_26
+  - Test 27: Sweep with sample C3 --> C3_27
+  - Test 28: Sweep with sample D3 --> D3_28
+  - Test 29: Sweep with sample E4 --> E3_29
+  - Test 30: Sweep with sample F3 --> F3_30
+  - Test 31: Sweep with sample G4 --> G3_31
+  - Test 32: Sweep with sample H3 --> H3_32
+  - Test 33: Sweep with sample I3 --> I3_33
+  - Test 34: Sweep with sample J3 --> J3_34
+  - Test 35: Sweep with sample L3 --> L3_35
+  - Test 36: Sweep with sample O3 --> O3_36
+  
   
   All tests are carried out in 2 steps:
   
@@ -63,6 +77,15 @@
   - Test 22 (22.6ºC, 31.0 %RH)
   - Test 23 (22.6ºC, 31.3 %RH)
   - Test 24 (22.2ºC, 32.1 %RH)
+
+-18/12/2024:
+  - Test 25 (19.7ºC, 35.1 %RH)
+  - Test 26 (20.8ºC, 34.7 %RH)
+  - Test 27 (21.7ºC, 34.3 %RH)
+  - Test 28 (22.4ºC, 34.2 %RH)
+  - Test 29 (22.9ºC, 34.1 %RH)
+  - Test 30 (22.9ºC, 33.3 %RH)
+  - Test 31 (23.3ºC, 33.0 %RH)
 
 ## Setup
 
