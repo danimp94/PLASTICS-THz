@@ -116,8 +116,8 @@
   - Test 44 (22.9ºC, 41.3 %RH)
   - Test 45 (23.5ºC, 40.3 %RH)
   - Test 46 (23.5ºC, 39.8 %RH)
-  - Test 47 
-  - Test 48 
+  - Test 47 (23.6ºC, 40.0 %RH)
+  - Test 48 (23.2ºC, 39.2 %RH)
 
 ## Setup
 
