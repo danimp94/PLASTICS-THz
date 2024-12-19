@@ -41,6 +41,19 @@
   - Test 34: Sweep with sample J3 --> J3_34
   - Test 35: Sweep with sample L3 --> L3_35
   - Test 36: Sweep with sample O3 --> O3_36
+- Day 4:
+  - Test 37: Sweep with sample G5 --> G4_37
+  - Test 38: Sweep with sample H4 --> H4_38
+  - Test 39: Sweep with sample I4 --> I4_39
+  - Test 40: Sweep with sample J4 --> J4_40
+  - Test 41: Sweep with sample L4 --> L4_41
+  - Test 42: Sweep with sample O4 --> O4_42
+  - Test 43: Sweep with sample A4 --> A4_43
+  - Test 44: Sweep with sample B4 --> B4_44
+  - Test 45: Sweep with sample C4 --> C4_45
+  - Test 46: Sweep with sample D4 --> D4_46
+  - Test 47: Sweep with sample E5 --> E4_47
+  - Test 48: Sweep with sample F4 --> F4_48
   
   
   All tests are carried out in 2 steps:
@@ -92,6 +105,20 @@
   - Test 35 (23.9ºC, 32.2 %RH)
   - Test 36 (23.6ºC, 32.1 %RH)
 
+-19/12/2024:
+  - Test 37 (20.7ºC, 40.6 %RH)
+  - Test 38 (21.0ºC, 40.7 %RH)
+  - Test 39 (22.0ºC, 41.8 %RH)
+  - Test 40 (22.4ºC, 41.5 %RH)
+  - Test 41 (22.7ºC, 42.6 %RH)
+  - Test 42 (22.9ºC, 41.8 %RH)
+  - Test 43 
+  - Test 44 
+  - Test 45 
+  - Test 46 
+  - Test 47 
+  - Test 48 
+
 ## Setup
 
 - **Equipment Used**: Spectroscopy setup with PCA and Schottky detector
@@ -122,7 +149,7 @@
 
 ## Notes
 
-- It gets more data at the end of the recording as the shutdown is manually done
+- Some samples in experiments 1 and 2 had 2x layer and were named E2 or G2, for this reason some samples names do not correspond with the file name
 
 ## Performer Contact
 
