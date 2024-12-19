@@ -112,10 +112,10 @@
   - Test 40 (22.4ºC, 41.5 %RH)
   - Test 41 (22.7ºC, 42.6 %RH)
   - Test 42 (22.9ºC, 41.8 %RH)
-  - Test 43 
-  - Test 44 
-  - Test 45 
-  - Test 46 
+  - Test 43 (22.5ºC, 41.8 %RH)
+  - Test 44 (22.9ºC, 41.3 %RH)
+  - Test 45 (23.5ºC, 40.3 %RH)
+  - Test 46 (23.5ºC, 39.8 %RH)
   - Test 47 
   - Test 48 
 
