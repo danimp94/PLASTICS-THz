@@ -54,6 +54,19 @@
   - Test 46: Sweep with sample D4 --> D4_46
   - Test 47: Sweep with sample E5 --> E4_47
   - Test 48: Sweep with sample F4 --> F4_48
+- Day 5:
+  - Test 49: Sweep with sample G6 --> G5_49
+  - Test 50: Sweep with sample H5 --> H5_50
+  - Test 51: Sweep with sample I5 --> I5_51
+  - Test 52: Sweep with sample J5 --> J5_52
+  - Test 53: Sweep with sample L5 --> L5_53
+  - Test 54: Sweep with sample O5 --> O5_54
+  - Test 55: Sweep with sample A5 --> A5_55
+  - Test 56: Sweep with sample B5 --> B5_56
+  - Test 57: Sweep with sample C5 --> C5_57
+  - Test 58: Sweep with sample D5 --> D5_58
+  - Test 59: Sweep with sample E6 --> E5_59
+  - Test 60: Sweep with sample F5 --> F5_60
   
   
   All tests are carried out in 2 steps:
@@ -118,6 +131,20 @@
   - Test 46 (23.5ºC, 39.8 %RH)
   - Test 47 (23.6ºC, 40.0 %RH)
   - Test 48 (23.2ºC, 39.2 %RH)
+
+-20/12/2024:
+  - Test 49 (21.8ºC, 32.1 %RH)
+  - Test 50 (22.4ºC, 31.6 %RH)
+  - Test 51 (23.1ºC, 31.7 %RH)
+  - Test 52 (23.5ºC, 30.6 %RH)
+  - Test 53 (24.0ºC, 30.0 %RH)
+  - Test 54 
+  - Test 55 
+  - Test 56 
+  - Test 57 
+  - Test 58 
+  - Test 59
+  - Test 60
 
 ## Setup
 
