@@ -138,13 +138,13 @@
   - Test 51 (23.1ºC, 31.7 %RH)
   - Test 52 (23.5ºC, 30.6 %RH)
   - Test 53 (24.0ºC, 30.0 %RH)
-  - Test 54 
-  - Test 55 
-  - Test 56 
-  - Test 57 
-  - Test 58 
-  - Test 59
-  - Test 60
+  - Test 54 (23.9ºC, 28.5 %RH)
+  - Test 55 (24.2ºC, 29.0 %RH)
+  - Test 56 (24.3ºC, 28.5 %RH)
+  - Test 57 (24.2ºC, 28.0 %RH)
+  - Test 58 (24.2ºC, 27.8 %RH)
+  - Test 59 (23.2ºC, 25.4 %RH)
+  - Test 60 (22.8ºC, 26.6 %RH)
 
 ## Setup
 
@@ -164,7 +164,7 @@
 | F      | PP/tie/EVOH/tie/PP (tupper) (0.27-0.31mm)                                        | <img src="../../img/F1.jpg" alt="Sample F" width="200"/> |
 | G      | PHB/PVOH/Ecovio (0.1mm) 							    | <img src="../../img/G1.jpg" alt="Sample G" width="200"/> |
 | H      | PP/tie/EVOH/tie/PP (0.07mm) 				                            | <img src="../../img/H1.jpg" alt="Sample H" width="200"/> |
-| I      | PS (0.36mm) **scratched                                                          | <img src="../../img/I1.jpg" alt="Sample I" width="200"/> |
+| I      | P (0.36mm) **scratched                                                          | <img src="../../img/I1.jpg" alt="Sample I" width="200"/> |
 | J      | LDPE (0.07mm) **wrinkled                                                         | <img src="../../img/J1.jpg" alt="Sample J" width="200"/> |
 | L      | PVC (1.85mm) **opaque; white; half-section                                       | <img src="../../img/L1.jpg" alt="Sample L" width="200"/> |
 | O      | PET (0.12mm)									    | <img src="../../img/O1.jpg" alt="Sample O" width="200"/> |
