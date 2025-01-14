@@ -160,14 +160,14 @@
 | B      | PE/tie/EVOH/tie/PE (Admer AT1707E) (0.57mm)                                      | <img src="../../img/B1.jpg" alt="Sample B" width="200"/> |
 | C      | ABS+PC (2.05mm) **white; opaque                                                  | <img src="../../img/C1.jpg" alt="Sample C" width="200"/> |
 | D      | ABS (3.0mm) **black; opaque                                                      | <img src="../../img/D1.jpg" alt="Sample D" width="200"/> |
-| E      | Ecovio/PVOH/Ecovio (0.1mm)							    | <img src="../../img/E1.jpg" alt="Sample E" width="200"/> |
+| E      | Ecovio/PVOH/Ecovio (0.1mm)							                                          | <img src="../../img/E1.jpg" alt="Sample E" width="200"/> |
 | F      | PP/tie/EVOH/tie/PP (tupper) (0.27-0.31mm)                                        | <img src="../../img/F1.jpg" alt="Sample F" width="200"/> |
-| G      | PHB/PVOH/Ecovio (0.1mm) 							    | <img src="../../img/G1.jpg" alt="Sample G" width="200"/> |
-| H      | PP/tie/EVOH/tie/PP (0.07mm) 				                            | <img src="../../img/H1.jpg" alt="Sample H" width="200"/> |
-| I      | P (0.36mm) **scratched                                                          | <img src="../../img/I1.jpg" alt="Sample I" width="200"/> |
+| G      | PHB/PVOH/Ecovio (0.1mm) 							                                            | <img src="../../img/G1.jpg" alt="Sample G" width="200"/> |
+| H      | PP/tie/EVOH/tie/PP (0.07mm) 				                                              | <img src="../../img/H1.jpg" alt="Sample H" width="200"/> |
+| I      | P (0.36mm) **scratched                                                           | <img src="../../img/I1.jpg" alt="Sample I" width="200"/> |
 | J      | LDPE (0.07mm) **wrinkled                                                         | <img src="../../img/J1.jpg" alt="Sample J" width="200"/> |
 | L      | PVC (1.85mm) **opaque; white; half-section                                       | <img src="../../img/L1.jpg" alt="Sample L" width="200"/> |
-| O      | PET (0.12mm)									    | <img src="../../img/O1.jpg" alt="Sample O" width="200"/> |
+| O      | PET (0.12mm)									                                                    | <img src="../../img/O1.jpg" alt="Sample O" width="200"/> |
 
 ## Data Collection
 
