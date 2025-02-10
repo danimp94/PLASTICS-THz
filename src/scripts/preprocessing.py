@@ -4,10 +4,13 @@ import os
 import argparse
 
 def find_header_end(file_path):
-    with open(file_path, 'r') as file:
-        for line_num, line in enumerate(file):
-            if "***End_of_Header***" in line:
-                return line_num + 1  # Data starts immediately after the header
+    try:
+        with open(file_path, 'r') as file:
+            for line_num, line in enumerate(file):
+                if "***End_of_Header***" in line:
+                    return line_num + 1  # Data starts immediately after the header
+    except Exception as e:
+        print(f"End of header not found: {e}")
     return None
 
 def read_lvm(file_path, start_line):
@@ -29,7 +32,8 @@ def process_file_to_csv(file_path, output_path, discard_first_percentage=0, disc
         header_line = find_header_end(file_path)
         if header_line is None:
             print("Error: Could not find the ***End_of_Header*** marker in the file.")
-            return
+            #return
+            header_line = 0
         data = read_lvm(file_path, header_line)
     elif file_path.endswith('.csv'):
         data = pd.read_csv(file_path, delimiter=';').values
@@ -366,21 +370,43 @@ if __name__ == "__main__":
 
     # Processing pipeline (from /src/scripts directory):
     # Input file path
-    # input = "../../data/experiment_1_plastics/raw/"
-    input = "../../data/experiment_1_plastics/processed_27s/"
+    input = "../../data/experiment_5_plastics/tmp/"
+    input = "../../data/experiment_5_plastics/processed/tmp/"
 
-    # # Output directory
-    output = "../../data/experiment_1_plastics/processed_27s/training_file/"
+    # input = "../../data/experiment_3_repeatibility/processed/test/"
+    # input = "../../data/experiment_3_repeatibility/raw/"
+    # input = "../../data/experiment_4_plastics/processed/new_sample/tmp/"
+
+
+
+    # # # Output directory
+    output = "../../data/experiment_5_plastics/processed/tmp/"
+    output = "../../data/experiment_5_plastics/processed/new_sample/"
+    # output = "../../data/experiment_3_repeatibility/processed/"
+
 
     # # Process files
-    # channel_names = ["Frequency (GHz)", "LG (mV)", "HG (mV)", "Thickness (mm)"]
-    # discard_first_percentage = 0 # Discard 77% of data from the beginning (50s/65s) *77x0.74 for frequencies > 200 GHz (20s/35s)
-    # discard_last_percentage = 10 # Discard 20% of resulting data from the end after discarding 77% from the beginning (3s/15s)
+    # channel_names = ["Frequency (GHz)", "LG (mV)", "HG (mV)"]
+    # discard_first_percentage = 77 # Discard 77% of data from the beginning (50s/65s) *77x0.74 for frequencies > 200 GHz (20s/35s)
+    # discard_last_percentage = 20 # Discard 20% of resulting data from the end after discarding 77% from the beginning (3s/15s)
 
     # process_files(input, output, discard_first_percentage, discard_last_percentage, channel_names)
 
+
+    # Add sample name column
+    add_sample_name_column(input, output)
+
+
     # Merge files
-    merge_files(input, os.path.join(output, 'merged_2.csv'))
+    # merge_files(input, os.path.join(output, 'test_merged_v1.csv'))
+
+    # In Sample column, if starts with E --> E1, if starts with H --> H1, if starts with R --> REF
+    # df = pd.read_csv(os.path.join(output, 'test_merged.csv'), delimiter=';')
+    # df['Sample'] = df['Sample'].apply(lambda x: 'E1' if x.startswith('E') else 'H1' if x.startswith('H') else 'REF')
+    # df.to_csv(os.path.join(output, 'test_merged_v1_pca.csv'), sep=';', index=False)
+    
+
+
 
     # Calculate averages and dispersion for each frequency
     # calculate_averages_and_dispersion(input, data_percentage=100, output_path=os.path.join(output, 'dispersion.csv'))
