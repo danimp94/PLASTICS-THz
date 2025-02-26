@@ -65,7 +65,7 @@ def calculate_averages_and_dispersion(data, data_percentage=5):
 def preprocess_data(data):
     # Windowing the data
     data = calculate_averages_and_dispersion(data)
-
+            
     # Assuming the last column is the target
     X = data.iloc[:, :-1].values
     y = data.iloc[:, -1].values
