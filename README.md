@@ -1,4 +1,4 @@
-# PIC-PAPER-01
+# PLASTICS-THz
 
 ## Overview
 
