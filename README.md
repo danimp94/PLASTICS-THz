@@ -107,6 +107,12 @@ The project tests various plastic and composite materials including:
 | O      | PET (0.12mm)                                                                     | <img src="img/O1.jpg" alt="Sample O" width="200"/> |
 
 *Additional sample variations (B2, E2, E3, G2, G3, H2) are available in the image folder.*
+
+## Sample Characteristics
+
+Detailed properties of the plastic samples are available in the [characteristics data file](data/characteristics.csv).
+
+
 ## Contact
 
 - **Researcher**: Daniel Moreno París
