@@ -17,6 +17,12 @@ src/
 │   └── visualization_playground.ipynb
 └── README.md
 ```
+## Quick Start
+
+### Installation
+```sh
+pip install -r requirements.txt
+```
 
 ## Scripts
 
@@ -192,10 +198,6 @@ results/
 ├── freq_viz/           # Frequency-specific visualizations
 └── exp_5/              # Experiment results and metrics
 ```
-
-## License
-
-This project is licensed under the MIT License.
 
 ## Contact
 
