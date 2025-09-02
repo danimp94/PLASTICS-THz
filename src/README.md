@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository contains scripts for preprocessing, clustering, and plotting spectroscopy data. The scripts are designed to handle LVM and CSV files, perform data processing, clustering, and generate various plots for data visualization.
+This repository contains scripts and Jupyter notebooks for preprocessing, training machine learning models, and visualizing spectroscopy data. The tools are designed to handle LVM and CSV files, perform data processing, clustering, model training, and generate various plots for data visualization and analysis.
 
 ## Directory Structure
 
@@ -10,8 +10,12 @@ This repository contains scripts for preprocessing, clustering, and plotting spe
 src/
 ├── scripts/
 │   ├── preprocessing.py
-│   ├── plotter.py
-│   └── README.md
+│   └── plotter.py
+├── nb/
+│   ├── train.ipynb
+│   ├── stabilization.ipynb
+│   └── visualization_playground.ipynb
+└── README.md
 ```
 
 ## Scripts
@@ -59,6 +63,58 @@ python plotter.py <command> [options]
 - `overlay_avg <data_files> <channel_indices>`: Plot overlay of averaged spectroscopy data.
 - `plot_transmittance <file_path> [samples]`: Plot transmittance from CSV file.
 
+## Jupyter Notebooks
+
+### 1. Training Notebook
+
+**File:** `nb/train.ipynb`
+
+This comprehensive notebook handles the complete machine learning pipeline for spectroscopy data classification:
+
+#### Features
+- **Data Loading & Preprocessing**: Load data from directories, handle time windows, and pivot frequency values to columns
+- **Feature Engineering**: Add differential features, apply scaling, and dimensionality reduction techniques
+- **Model Training**: Train multiple classifiers including:
+  - Random Forest
+  - Naive Bayes
+  - Logistic Regression
+  - Gradient Boosting
+  - Support Vector Machine
+- **Model Evaluation**: Performance metrics, confusion matrices, and feature importance analysis
+- **Visualization**: PCA plots (1D, 2D, 3D), frequency-specific 3D plots
+- **Results Export**: Save model results, confusion matrices, and visualizations
+
+#### Key Functions
+- Data preprocessing with configurable options
+- Multiple model training and comparison
+- Feature importance extraction
+- PCA and dimensionality reduction analysis
+- Performance evaluation with AIC/BIC criteria
+
+### 2. Stabilization Analysis
+
+**File:** `nb/stabilization.ipynb`
+
+This notebook focuses on analyzing signal stabilization in spectroscopy measurements:
+
+#### Features
+- Signal stability analysis over time
+- Stabilization time calculation
+- Time-series visualization
+- Signal quality assessment
+
+### 3. Visualization Playground
+
+**File:** `nb/visualization_playground.ipynb`
+
+An experimental notebook for developing and testing various visualization techniques:
+
+#### Features
+- Interactive plotting experiments
+- Custom visualization development
+- Data exploration tools
+- Plot customization testing
+
 ## Example Commands
 
 ### Preprocessing
@@ -84,6 +140,25 @@ python plotter.py overlay_avg ../../data/experiment_1_plastics/processed/*.csv 2
 python plotter.py plot_transmittance ../../data/experiment_1_plastics/processed/result/transmittance_results.csv A1 B1 C1
 ```
 
+### Notebook Usage
+
+To run the Jupyter notebooks:
+
+```sh
+# Navigate to the notebook directory
+cd nb/
+
+# Start Jupyter Lab or Notebook
+jupyter lab
+# or
+jupyter notebook
+
+# Open the desired notebook:
+# - train.ipynb for machine learning pipeline
+# - stabilization.ipynb for signal analysis
+# - visualization_playground.ipynb for experimental plots
+```
+
 ## Requirements
 
 - Python 3.x
@@ -93,13 +168,29 @@ python plotter.py plot_transmittance ../../data/experiment_1_plastics/processed/
 - seaborn
 - scikit-learn
 - mplcursors
+- jupyter
+- joblib
+- scipy
 
 ## Installation
 
 Install the required Python packages using pip:
 
 ```sh
-pip install pandas numpy matplotlib seaborn scikit-learn mplcursors
+pip install pandas numpy matplotlib seaborn scikit-learn mplcursors jupyter joblib scipy
+```
+
+## Output Structure
+
+The notebooks and scripts generate organized output in the following structure:
+
+```
+results/
+├── pca_models/          # PCA visualization plots
+├── conf_matrix/         # Confusion matrices
+├── feature_importance_detailed/  # Feature importance plots
+├── freq_viz/           # Frequency-specific visualizations
+└── exp_5/              # Experiment results and metrics
 ```
 
 ## License
