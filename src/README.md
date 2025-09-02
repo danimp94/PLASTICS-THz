@@ -10,7 +10,6 @@ This repository contains scripts for preprocessing, clustering, and plotting spe
 src/
 ├── scripts/
 │   ├── preprocessing.py
-│   ├── cluster.py
 │   ├── plotter.py
 │   └── README.md
 ```
@@ -41,19 +40,7 @@ python preprocessing.py <command> [options]
 - `calculate_transmittance <input_file> <output_dir>`: Calculate transmittance.
 - `calculate_averages_and_dispersion <input_file> <output_file> [--data_percentage <percentage>]`: Calculate averages and dispersion.
 
-### 2. Clustering
-
-**File:** `cluster.py`
-
-This script performs clustering on the processed data using KMeans and generates 3D plots of the clusters.
-
-#### Usage
-
-```sh
-python cluster.py
-```
-
-### 3. Plotting
+### 2. Plotting
 
 **File:** `plotter.py`
 
