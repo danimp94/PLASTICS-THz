@@ -112,6 +112,20 @@ The project tests various plastic and composite materials including:
 
 Detailed properties of the plastic samples are available in the [characteristics data file](data/characteristics.csv).
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+### Citation
+
+If you use this code or data in your research, please cite our paper.
+
+### Usage Terms
+
+You are free to:
+- Use the code and data for any purpose
+- Modify and distribute the code
+- Use in commercial applications
 
 ## Contact
 
