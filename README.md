@@ -114,7 +114,7 @@ Detailed properties of the plastic samples are available in the [characteristics
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This codebase is released under [MIT License](LICENSE).
 
 ### Citation
 
