@@ -129,5 +129,11 @@ You are free to:
 
 ## Contact
 
-- **Researcher**: Daniel Moreno París
-- **Email**: danmoren@ing.uc3m.es
+- **Researcher**:
+  - **Daniel Moreno París**: danmoren@ing.uc3m.es  
+
+- **Collaborators**:
+  - **David Hernandez Guerrero**: davidhgu@ing.uc3m.es 
+  - **Aldo Moreno-Oyervides**: aldmoren@ing.uc3m.es  
+  - **Oscar E. Bonilla-Manrique**: obonilla@ing.uc3m.es  
+  - **Pedro Martín Mateos**: pmmateos@ing.uc3m.es
