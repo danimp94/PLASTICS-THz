@@ -32,10 +32,10 @@ from scipy.signal import savgol_filter
 REPO = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 OUTDIR = os.path.join(REPO, 'results', 'exp_5')  # where lodo_*.csv land (cache is shared)
-OUT_PREFIX = 'lodo_'  # separate outputs; same workflow as train_lodo (reproduces its numbers)
+OUT_PREFIX = 'lodo_'  # output filename prefix
 WORKERS = os.cpu_count() or 4                    # parallel (fold, norm) processes
 SMOKE = False                                    # True -> fold 0 only, K=[10, 3]
-SEED = 42                                        # pinned; changing it changes all results
+SEED = 42                                        # fixed seed for reproducibility (random_state, np.random, random.seed)
 
 K_LIST = [50, 20, 10, 5, 3, 1]
 FREQS_ALL = list(range(100, 591, 10))
@@ -58,11 +58,19 @@ ALPHA_REF_FLOOR_MV = 0.5  # |HG median| below this ~= dead-band noise (per-windo
 ALPHA_LG_FLOOR_MV = 3.0  # LG twin (~2.5-3 sigma of per-window LG noise ~= 1.14 mV)
 WINDOW_S = 0.1
 LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'O']
-NORM_MODES = ['baseline', 'alpha']  # paper loop (deprecated x/d dropped: -33% fits)
-APPLY_SCALING = False
-APPLY_SG = False
+TEST_NORMS = ['alpha']  # normalizations tested against baseline; subset of {'alpha'} (extension point)
+
+NORM_LABELS = {'baseline': 'baseline T(f)', 'alpha': 'alpha(f) = -ln(T)/d',
+               }
+APPLY_SCALING = True  
+APPLY_SG = True
 SG_W = 3
 SG_P = 2
+# Pre-windowing SG: temporal denoise of raw LG/HG inside each frequency dwell,
+# BEFORE windowing 
+APPLY_PRE_SG = False
+PRE_SG_W = 5
+PRE_SG_P = 2
 APPLY_PCA = False
 APPLY_LDA = False
 APPLY_QDA = False
@@ -81,7 +89,7 @@ def load_data_with_groups(input_path):
         if file.endswith('.csv'):
             df = pd.read_csv(os.path.join(input_path, file), delimiter=';', header=0)
             df['SourceFile'] = file
-            # Day = leading number after polymer letter: A1_1 -> 1, A3_25 -> 3, G4_37 -> 4
+            # Day = leading number after polymer letter
             m = re.match(r'[A-Z](\d+)_', file)
             df['Day'] = int(m.group(1)) if m else -1
             frames.append(df)
@@ -485,6 +493,16 @@ def compute_band_reference(df_pivot_train, freqs_all=FREQS_ALL, floor_mv=ALPHA_R
     return ref
 
 
+def _row_thickness(df_pivot, thickness_map):
+    """Per-row thickness from the Sample letter (one thickness per polymer)."""
+    d = df_pivot['Sample'].map(thickness_map)
+    if d.isna().any():
+        raise ValueError(f"Missing thickness for samples: {df_pivot.loc[d.isna(), 'Sample'].unique()}")
+    if bool((d <= 0).any()):
+        raise ValueError("Non-positive thickness encountered")
+    return d
+
+
 def apply_alpha_pivoted(df_pivot, ref_hg, ref_lg, freqs_all=FREQS_ALL, thickness_map=THICKNESS_MM, eps=1e-6):
     """Beer-Lambert alpha(f) = -ln(T)/d with T = sample(f)/ref(f), per channel.
 
@@ -497,11 +515,7 @@ def apply_alpha_pivoted(df_pivot, ref_hg, ref_lg, freqs_all=FREQS_ALL, thickness
     stay separate per norm_mode. 'Sample'/'Day'/'SourceFile' columns unchanged.
     """
     out = df_pivot.copy()
-    d = out['Sample'].map(thickness_map)
-    if d.isna().any():
-        raise ValueError(f"Missing thickness for samples: {out.loc[d.isna(), 'Sample'].unique()}")
-    if bool((d <= 0).any()):
-        raise ValueError("Non-positive thickness encountered")
+    d = _row_thickness(out, thickness_map)
     for f in freqs_all:
         hm = f'{f}.0 HG (mV) mean'
         if hm in out.columns:
@@ -529,19 +543,23 @@ def apply_alpha_pivoted(df_pivot, ref_hg, ref_lg, freqs_all=FREQS_ALL, thickness
 def frequency_scores_from_importances(imp_by_model, feature_columns, freqs_all=FREQS_ALL):
     """Feature importances -> frequency scores.
 
-    Each frequency owns up to 4 cols (HG/LG x mean/std). Per model: z-score its
-    importances (scales differ across models), mean over the freq's present cols;
+    Each frequency votes with its HG-channel columns only (HG mean + HG std):
+    HG is the primary spectroscopy channel (dead HG bands carry no signal, so
+    they sink instead of being promoted by LG-magnitude votes), while LG/std
+    columns still ride along untouched in training. Per model: z-score its
+    importances (scales differ across models), mean over the freq's HG cols;
     then average across the 5 models. Returns a ranking table (best first).
     """
     z = {}
     for m, s in imp_by_model.items():
-        s = pd.Series(np.asarray(s, dtype=float), index=list(feature_columns)).astype(float)
+        # Label-aligned: imp Series arrive sorted by importance, so reindex
+        s = pd.Series(s, dtype=float).reindex(list(feature_columns)).astype(float)
         sd = float(s.std(ddof=0))
         z[m] = (s - float(s.mean())) / (sd if sd > 0 else 1.0)
     rows = []
     for f in freqs_all:
-        cols = [f'{f}.0 HG (mV) mean', f'{f}.0 LG (mV) mean',
-                f'{f}.0 HG (mV) std deviation', f'{f}.0 LG (mV) std deviation']
+        cols = [f'{f}.0 HG (mV) mean',
+                f'{f}.0 HG (mV) std deviation']
         have = [c for c in cols if c in z['RF'].index]
         rows.append({'Frequency': f,
                      'score': float(np.mean([float(z[m][have].mean()) for m in z])) if have else float('nan'),
@@ -584,11 +602,13 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
     set_seed(seed)
     if norm == "baseline":
         _tr_n, _te_n, _ref, _ref_lg = df_tr.copy(), df_te.copy(), None, None
-    else:
+    elif norm == "alpha":
         _ref = compute_band_reference(df_tr, freqs_all)
         _ref_lg = compute_band_reference(df_tr, freqs_all, ALPHA_LG_FLOOR_MV, "LG")
         _tr_n = apply_alpha_pivoted(df_tr, _ref, _ref_lg, freqs_all)
         _te_n = apply_alpha_pivoted(df_te, _ref, _ref_lg, freqs_all)
+    else:
+        raise ValueError(f"unknown norm: {norm} (TEST_NORMS must be a subset of {{'alpha'}})")
     _t0 = time.time()
     _Xtr50, _ytr50 = preprocess_data(_tr_n, labels, freqs_all)
     _Xtr50 = add_features(_Xtr50, _ytr50, freqs_all, False, False)
@@ -651,7 +671,32 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
     return {"records": records, "topK": _topK, "ranking": _ranking,
             "ref": _ref, "ref_lg": _ref_lg, "sel_time_s": float(_sel_time)}
 
-def build_pivot(notebook_nb_dir, window_s, outdir):
+def apply_pre_sg(df_long, window_length, polyorder):
+    """Temporal Savitzky-Golay denoise of raw LG/HG before windowing.
+    Applied per (Sample, Frequency, SourceFile) group along acquisition order,
+    so no window ever spans a file/day boundary.
+    """
+    if int(window_length) % 2 != 1:
+        raise ValueError(f"SG window_length must be odd, got {window_length}")
+    if not (int(polyorder) < int(window_length)):
+        raise ValueError(f"SG polyorder ({polyorder}) must be < window_length ({window_length})")
+    from scipy.signal import savgol_filter as _sg
+    parts = []
+    for _, group in df_long.groupby(['Sample', 'Frequency (GHz)', 'SourceFile'], sort=False):
+        vals = group[['LG (mV)', 'HG (mV)']].to_numpy(dtype=float)
+        if not np.isfinite(vals).all():
+            raise ValueError("Non-finite LG/HG values in pre-SG input")
+        if len(group) < int(window_length):
+            parts.append(group)
+            continue
+        group = group.copy()
+        group[['LG (mV)', 'HG (mV)']] = _sg(vals, window_length=int(window_length),
+                                            polyorder=int(polyorder), axis=0)
+        parts.append(group)
+    return pd.concat(parts, ignore_index=True)
+
+
+def build_pivot(notebook_nb_dir, window_s, outdir, pre_sg=False, pre_sg_w=5, pre_sg_p=2):
     """Windowing BEFORE the split, with the shared parquet/pickle cache."""
     _dp = (100 / 12) * window_s
     _pivot_cache = os.path.normpath(os.path.join(outdir, "lodo_pivot_cache"))
@@ -690,7 +735,8 @@ def build_pivot(notebook_nb_dir, window_s, outdir):
         except Exception:
             _arrow_v = None
         return {"window_s": window_s, "dp": _dp, "inputs": h.hexdigest(),
-                "pandas": pd.__version__, "pyarrow": _arrow_v}
+                "pandas": pd.__version__, "pyarrow": _arrow_v,
+                "pre_sg": bool(pre_sg), "pre_sg_w": int(pre_sg_w), "pre_sg_p": int(pre_sg_p)}
 
     _sig = _pivot_input_sig()
     df_pivot_full = None
@@ -706,6 +752,22 @@ def build_pivot(notebook_nb_dir, window_s, outdir):
             df_pivot_full = None
     if df_pivot_full is None:
         _df_long = load_grouped_data(notebook_nb_dir)
+        if pre_sg:
+            _t0 = time.time()
+
+            def _temporal_noise(_df):
+                # Median |first-difference| within acquisition groups: pure
+                # temporal jitter, blind to between-band/polymer level shifts.
+                _d = _df.groupby(['Sample', 'Frequency (GHz)', 'SourceFile'],
+                                 sort=False)[['LG (mV)', 'HG (mV)']].diff().abs().stack()
+                return float(_d.median())
+
+            _noise_before = _temporal_noise(_df_long)
+            _df_long = apply_pre_sg(_df_long, pre_sg_w, pre_sg_p)
+            _noise_after = _temporal_noise(_df_long)
+            print(f"pre-SG filter (w={pre_sg_w}, p={pre_sg_p}): "
+                  f"temporal noise {_noise_before:.4f} -> {_noise_after:.4f} "
+                  f"({time.time() - _t0:.1f}s)", flush=True)
         df_pivot_full = grouped_pivot(_df_long, _dp).dropna().reset_index(drop=True)
         _fmt = _pivot_cache_write(df_pivot_full)
         json.dump({"sig": _sig, "fmt": _fmt},
@@ -763,16 +825,18 @@ def aggregate_summary(cv_results, paper_norms, outdir, tag):
                                values="mean_acc").round(4).to_string())
     return summary_df
 
-def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix):
-    """Baseline-vs-alpha grouped bars per K + selection-stability bars (headless PDFs)."""
-
+def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix, norms):
+    """Grouped accuracy bars per K + selection-stability bars.
+    norms sets the compared arms, baseline first (bar offsets generalize to N arms).
+    """
+    _nrms = list(norms)
     _x = np.arange(len(MODELS_ORDER))
     _w = 0.35
 
     for _K in sorted(cv_results['K'].unique()):
         _fig, _ax = plt.subplots(figsize=(9, 4.5))
 
-        for _j, _n in enumerate(['baseline', 'alpha']):
+        for _j, _n in enumerate(_nrms):
             _mu, _sd = [], []
 
             for _m in MODELS_ORDER:
@@ -786,13 +850,12 @@ def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix):
                 _sd.append(float(_r.std(ddof=1)) if len(_r) > 1 else 0.0)
 
             _bars = _ax.bar(
-                _x + (_j - 0.5) * _w,
+                _x + (_j - (len(_nrms) - 1) / 2) * _w,
                 _mu,
                 _w,
                 yerr=_sd,
                 capsize=3,
-                label=('baseline T(f)' if _n == 'baseline'
-                       else 'alpha(f) = -ln(T)/d')
+                label=NORM_LABELS[_n]
             )
 
             for _bar, _value in zip(_bars, _mu):
@@ -813,7 +876,7 @@ def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix):
         _ax.grid(True, axis='y', alpha=0.3)
         plt.tight_layout()
         plt.savefig(
-            os.path.join(outdir, f'{OUT_PREFIX}compare_{_K}freqs.pdf'),
+            os.path.join(outdir, f'{prefix}{tag}compare_{_K}freqs.pdf'),
             bbox_inches='tight',
             dpi=300
         )
@@ -828,11 +891,11 @@ def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix):
         _w2 = 0.35
         _n_folds = cv_results['fold'].nunique()
 
-        for _j, _n in enumerate(['baseline', 'alpha']):
+        for _j, _n in enumerate(_nrms):
             _s = stability_df[
-                (stability_df['norm_mode'] == _n) &
-                (stability_df['K'] == int(_K))
-            ].set_index('freq')
+                    (stability_df['norm_mode'] == _n) &
+                    (stability_df['K'] == int(_K))
+                ].set_index('freq')
 
             _vals = [
                 int(_s.loc[f, 'n_selected']) if f in _s.index else 0
@@ -840,7 +903,7 @@ def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix):
             ]
 
             _bars = _ax.bar(
-                _xi + (_j - 0.5) * _w2,
+                _xi + (_j - (len(_nrms) - 1) / 2) * _w2,
                 _vals,
                 _w2,
                 label=_n
@@ -872,7 +935,7 @@ def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix):
         _ax.grid(True, axis='y', alpha=0.3)
         plt.tight_layout()
         plt.savefig(
-            os.path.join(outdir, f'{OUT_PREFIX}stability_K{_K}.pdf'),
+            os.path.join(outdir, f'{prefix}{tag}stability_K{_K}.pdf'),
             bbox_inches='tight',
             dpi=300
         )
@@ -945,7 +1008,7 @@ def plot_confusion_matrix_pdf(y_true, y_pred, labels, save_path, model_name):
     plt.close(fig)
 
 def save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, labels,
-                        freqs_all, outdir, tag, prefix, seed):
+                        freqs_all, outdir, tag, prefix, seed, norms):
     """Fold-0 confusion matrices for the best K/model per norm (deterministic refit)."""
     _held0 = int(cv_results[cv_results['fold'] == 0]['held_out_day'].iloc[0])
     _df_tr0 = df_pivot_full[df_pivot_full['Day'] != _held0].reset_index(drop=True)
@@ -957,16 +1020,18 @@ def save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, labe
         'GB': lambda: GradientBoostingClassifier(random_state=seed),
         'SVM': lambda: SVC(random_state=seed),
     }
-    for _norm in NORM_MODES:
+    for _norm in norms:
         _sub = cv_results[(cv_results['fold'] == 0) & (cv_results['norm_mode'] == _norm)]
         _best = _sub.loc[_sub['acc'].idxmax()]
         _K, _model = int(_best['K']), str(_best['model'])
         _fq = [int(f) for f in str(_best['selected_freqs']).split(',')]
         if _norm == 'baseline':
             _tr_n, _te_n = _df_tr0.copy(), _df_te0.copy()
-        else:
+        elif _norm == 'alpha':
             _tr_n = apply_alpha_pivoted(_df_tr0, band_refs[(0, _norm)], band_refs_lg[(0, _norm)], FREQS_ALL)
             _te_n = apply_alpha_pivoted(_df_te0, band_refs[(0, _norm)], band_refs_lg[(0, _norm)], FREQS_ALL)
+        else:
+            raise ValueError(f"unknown norm: {_norm}")
         _Xtr, _ytr = preprocess_data(_tr_n, LABELS, _fq)
         _Xtr = add_features(_Xtr, _ytr, _fq, False, False)
         _Xte, _yte = preprocess_data(_te_n, LABELS, _fq)
@@ -1013,6 +1078,9 @@ def run_guards(cv_results, band_refs, band_refs_lg, df_pivot_full, freqs_all, sm
         assert _core_dead_lg <= _dead, f"fold {_f}: core LG-dead bands live?! {sorted(_core_dead_lg - _dead)}"
         print(f"fold {_f} LG: {len(_live)} live / {len(_dead)} dead bands; dead={sorted(_dead)}")
     print("LG reference check: OK (train-fold medians; dead = NaN, never scaled)")
+    if (0, "alpha") not in band_refs:
+        print("alpha not selected: skipping alpha guards", flush=True)
+        return
     _r0 = band_refs[(0, "alpha")]
     _r0_lg = band_refs_lg[(0, "alpha")]
     _day0 = int(_cov.iloc[0]["held_out_day"])
@@ -1042,16 +1110,20 @@ def main():
     os.makedirs(outdir, exist_ok=True)
     tag = "smoke_" if smoke else ""
     K_list = list(K_LIST) if not smoke else [10, 3]
-    paper_norms = ["baseline", "alpha"]
+    paper_norms = ['baseline'] + [n for n in TEST_NORMS if n != 'baseline']
+    assert set(paper_norms) <= {'baseline', 'alpha'}, f"unknown norms: {paper_norms}"
+    all_norms = list(paper_norms)
     flags = {"scaling": bool(APPLY_SCALING), "sg": bool(APPLY_SG),
              "sg_w": int(SG_W), "sg_p": int(SG_P),
+             "pre_sg": bool(APPLY_PRE_SG), "pre_sg_w": int(PRE_SG_W), "pre_sg_p": int(PRE_SG_P),
              "pca": bool(APPLY_PCA), "lda": bool(APPLY_LDA),
              "qda": bool(APPLY_QDA), "ica": bool(APPLY_ICA)}
     print(f"seed={seed} workers={workers} smoke={smoke} outdir={outdir}", flush=True)
     set_seed(seed)
     t_all = time.time()
     nb_dir = os.path.join(REPO, "src", "nb")
-    df_pivot_full = build_pivot(nb_dir, float(WINDOW_S), outdir)
+    df_pivot_full = build_pivot(nb_dir, float(WINDOW_S), outdir,
+                                bool(APPLY_PRE_SG), int(PRE_SG_W), int(PRE_SG_P))
     print(f"pivot: {df_pivot_full.shape}, "
           f"days={sorted(df_pivot_full['Day'].unique())}", flush=True)
     assert set(df_pivot_full["Day"].unique()) == {1, 2, 3, 4, 5}
@@ -1065,7 +1137,7 @@ def main():
         assert len(held) == 1, f"fold {fold} mixes days: {held}"
         df_tr = df_pivot_full.iloc[tri].reset_index(drop=True)
         df_te = df_pivot_full.iloc[tei].reset_index(drop=True)
-        for norm in NORM_MODES:
+        for norm in all_norms:
             tasks.append((fold, held[0], norm, df_tr, df_te))
     workers = max(1, min(workers, len(tasks)))
     print(f"tasks={len(tasks)} workers={workers}", flush=True)
@@ -1080,7 +1152,7 @@ def main():
         rankings_by_fold[(fold, norm)] = o["ranking"]
         band_refs[(fold, norm)] = o["ref"]
         band_refs_lg[(fold, norm)] = o["ref_lg"]
-    norm_order = {n: j for j, n in enumerate(list(NORM_MODES))}
+    norm_order = {n: j for j, n in enumerate(list(all_norms))}
     k_order = {int(k): j for j, k in enumerate(K_list)}
     m_order = {m: j for j, m in enumerate(list(MODELS_ORDER))}
     records.sort(key=lambda r: (r["fold"], norm_order[r["norm_mode"]],
@@ -1093,13 +1165,13 @@ def main():
     stability_df, _universal = aggregate_stability(
         cv_results, topk_by_fold, rankings_by_fold, list(FREQS_ALL), paper_norms, outdir, tag)
     summary_df = aggregate_summary(cv_results, paper_norms, outdir, tag)
-    save_result_plots(cv_results, stability_df, list(FREQS_ALL), outdir, tag, OUT_PREFIX)
+    save_result_plots(cv_results, stability_df, list(FREQS_ALL), outdir, tag, OUT_PREFIX, list(all_norms))
     save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, list(LABELS),
-                        list(FREQS_ALL), outdir, tag, OUT_PREFIX, seed)
+                        list(FREQS_ALL), outdir, tag, OUT_PREFIX, seed, list(all_norms))
     t_all = time.time() - t_all
     tt = cv_results.groupby("model")["train_time_s"].mean().round(3).to_dict()
     meta = {"seed": seed, "workers": workers, "smoke": smoke,
-            "K": [int(k) for k in K_list], "norms": [str(n) for n in NORM_MODES],
+            "K": [int(k) for k in K_list], "norms": [str(n) for n in all_norms],
             "labels": [str(x) for x in LABELS], "window_s": float(WINDOW_S),
             "flags": flags, "rows": int(cv_results.shape[0]),
             "mean_train_time_s_per_model": {str(k): float(v) for k, v in tt.items()},
