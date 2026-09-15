@@ -13,7 +13,7 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 import matplotlib
-matplotlib.use("Agg")  # headless: PDFs only, never shown
+matplotlib.use("Agg")  
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from sklearn.decomposition import FastICA
@@ -31,13 +31,26 @@ from scipy.signal import savgol_filter
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-OUTDIR = os.path.join(REPO, 'results', 'exp_5')  # where lodo_*.csv land (cache is shared)
+OUTDIR = os.path.join(REPO, 'results', 'exp_5') 
 OUT_PREFIX = 'lodo_'  # output filename prefix
 WORKERS = os.cpu_count() or 4                    # parallel (fold, norm) processes
 SMOKE = False                                    # True -> fold 0 only, K=[10, 3]
 SEED = 42                                        # fixed seed for reproducibility (random_state, np.random, random.seed)
 
-K_LIST = [50, 20, 10, 5, 3, 1]
+K_LIST = [50, 20, 10, 5, 3, 1]  # final: SELECTED x baseline + alpha, all K
+# LODO-selected fixed sets, NESTED (each K contains all smaller Ks), SAME bands both norms.
+# K3 = [360,400,460] fixed. K1 = [360] (top member by pooled mean rank;
+# v3-nested unanimous core). Larger Ks = previous set + top pooled-vote bands
+# (10 outer-fold own-selections: 5 baseline + 5 alpha; votes desc, mean rank asc):
+# K5 adds 330,320; K10 adds 350,310,370,420,230; K20 adds 450,500,200,380,510,430,340,390,410,290.
+SELECTED = {
+    1:  [360],
+    3:  [360, 400, 460],
+    5:  [320, 330, 360, 400, 460],
+    10: [230, 310, 320, 330, 350, 360, 370, 400, 420, 460],
+    20: [200, 230, 290, 310, 320, 330, 340, 350, 360, 370, 380, 390, 400, 410, 420, 430, 450, 460, 500, 510],
+    50: list(range(100, 591, 10)),
+}
 FREQS_ALL = list(range(100, 591, 10))
 MODELS_ORDER = ['RF', 'NB', 'LR', 'GB', 'SVM']
 THICKNESS_MM = {
@@ -62,15 +75,15 @@ TEST_NORMS = ['alpha']  # normalizations tested against baseline; subset of {'al
 
 NORM_LABELS = {'baseline': 'baseline T(f)', 'alpha': 'alpha(f) = -ln(T)/d',
                }
-APPLY_SCALING = True  
-APPLY_SG = True
+APPLY_SCALING = True
+APPLY_SG = False
 SG_W = 3
 SG_P = 2
 # Pre-windowing SG: temporal denoise of raw LG/HG inside each frequency dwell,
 # BEFORE windowing 
 APPLY_PRE_SG = False
-PRE_SG_W = 5
-PRE_SG_P = 2
+PRE_SG_W = 11
+PRE_SG_P = 3
 APPLY_PCA = False
 APPLY_LDA = False
 APPLY_QDA = False
@@ -257,9 +270,9 @@ def _lr_coef(lr_model):
 def train_models(X_train, y_train, seed):
     training_times = []
 
-    # Random Forest (n_jobs: same draws with fixed random_state, uses all cores)
+    # Random Forest RF-A (v3/v4 recipe: same algorithm, tuned depth/trees)
     start_time = time.time()
-    rf_model = RandomForestClassifier(n_jobs=-1, random_state=seed)
+    rf_model = RandomForestClassifier(n_estimators=500, min_samples_leaf=2, n_jobs=-1, random_state=seed)
     rf_model.fit(X_train, y_train)
     training_times.append(time.time() - start_time)
 
@@ -309,12 +322,12 @@ def get_feature_importances(rf_model, lr_model, gb_model, nb_model, svm_model, X
     gb_feature_importances_df = gb_feature_importances_df.sort_values('Importance', ascending=False)
 
     # Naive Bayes permutation importance (n_jobs: deterministic with fixed random_state)
-    result_nb = permutation_importance(nb_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=-1)
+    result_nb = permutation_importance(nb_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=1)
     sorted_idx_nb = result_nb.importances_mean.argsort()[::-1]
     nb_feature_importances_df = pd.DataFrame({'Feature': feature_names[sorted_idx_nb], 'Importance': result_nb.importances_mean[sorted_idx_nb]})
 
     # SVM permutation importance
-    result_svm = permutation_importance(svm_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=-1)
+    result_svm = permutation_importance(svm_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=1)
     sorted_idx_svm = result_svm.importances_mean.argsort()[::-1]
     svm_feature_importances_df = pd.DataFrame({'Feature': feature_names[sorted_idx_svm], 'Importance': result_svm.importances_mean[sorted_idx_svm]})
 
@@ -571,15 +584,20 @@ def frequency_scores_from_importances(imp_by_model, feature_columns, freqs_all=F
 def select_topK_for_fold(Xtr_df, ytr, seed, K_list=K_LIST, freqs_all=FREQS_ALL):
     """Per-fold selection on TRAIN fold only (all 50 freqs) -> ({K: top-K}, ranking, models).
 
-    Fits RF + LR + GB and permutation importance for NB/SVM via get_feature_importances
-    (plot=False); Xtr_df must be a DataFrame (call BEFORE scaling/SG/PCA).
+    All voters see the same train-fit standardized frame (v4 hygiene: v2 fit
+    SVM/NB on raw mV spanning ~4 orders, making their votes noise). LR is scored
+    with mean |coef| over classes (the helper's coef_[0] legacy output is unused).
+    get_feature_importances(plot=False); Xtr_df must be a DataFrame.
     """
-    rf_m, nb_m, lr_m, gb_m, svm_m, _ = train_models(Xtr_df, ytr, seed)
+    _sc_sel = StandardScaler()
+    _Xtr_sel = pd.DataFrame(_sc_sel.fit_transform(Xtr_df),
+                            columns=[str(c) for c in Xtr_df.columns], index=Xtr_df.index)
+    rf_m, nb_m, lr_m, gb_m, svm_m, _ = train_models(_Xtr_sel, ytr, seed)
     # NOTE: the shared helper scores LR with coef_[0] (first class only in multinomial).
     # Universal selection uses mean |coef| over classes (strictly more complete); the
     # helper is still called for the RF/GB/NB/SVM importances.
     rf_imp, _lr_imp_legacy, gb_imp, nb_imp, svm_imp = get_feature_importances(
-        rf_m, lr_m, gb_m, nb_m, svm_m, Xtr_df, ytr, seed, False, 10)
+        rf_m, lr_m, gb_m, nb_m, svm_m, _Xtr_sel, ytr, seed, False, 10)
     lr_full = pd.DataFrame({'Feature': [str(c) for c in Xtr_df.columns],
                             'Importance': np.asarray(np.abs(_lr_coef(lr_m)).mean(axis=0), dtype=float)})
     imp = {}
@@ -593,12 +611,71 @@ def select_topK_for_fold(Xtr_df, ytr, seed, K_list=K_LIST, freqs_all=FREQS_ALL):
 
 # END SYNC
 
-def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all, flags):
-    """One (fold, norm_mode) unit: transform, select-on-train, fit+score per K.
+def nested_emergent_sets(df_outer_tr, seed, K_list, labels, freqs_all):
+    """Inner LOO over the 4 outer-train days -> ({K: emergent bands}, audit).
 
-    Mirrors the notebook loop body exactly, including K=50 model reuse on the raw
-    path. Returns (records, topK, ranking, ref, ref_lg, sel_time_s).
+    Rule (fixed in advance): per K, order bands by (inner-count desc, mean inner
+    rank asc), take top-K. Inner selections reuse select_topK_for_fold as-is.
     """
+    days = sorted(df_outer_tr["Day"].unique().tolist())
+    per_inner = []
+    for h in days:
+        d = df_outer_tr[df_outer_tr["Day"] != h].reset_index(drop=True)
+        X, y = preprocess_data(d, labels, freqs_all, eliminate_std_dev=True)
+        X = add_features(X, y, freqs_all, False, False)
+        per_inner.append(select_topK_for_fold(X, y, seed, K_list, freqs_all))
+    out, audit = {}, {}
+    for K in K_list:
+        cnt, ranks = Counter(), {}
+        for topK, ranking, _ in per_inner:
+            for f in topK[int(K)]:
+                cnt[f] += 1
+            for f, r in ranking.set_index("Frequency")["rank"].items():
+                ranks.setdefault(int(f), []).append(int(r))
+        ordered = sorted(freqs_all, key=lambda f: (-cnt.get(f, 0),
+                         float(np.mean(ranks[f])) if f in ranks else 1e9))
+        out[int(K)] = [int(f) for f in ordered[:int(K)]]
+        audit[int(K)] = [{"freq": int(f), "n": int(cnt.get(f, 0)),
+                          "mr": round(float(np.mean(ranks[f])), 2)} for f in ordered[:8]]
+    return out, audit
+
+
+def nested_emergent_sets_alpha(df_outer_tr, seed, K_list, labels, freqs_all):
+    """Inner LOO on the alpha path -> ({K: emergent bands}, audit).
+
+    Same rule as baseline version, but each inner-train computes its own
+    alpha refs (train rows only) and selects on alpha-transformed data.
+    """
+    days = sorted(df_outer_tr["Day"].unique().tolist())
+    per_inner = []
+    for h in days:
+        d = df_outer_tr[df_outer_tr["Day"] != h].reset_index(drop=True)
+        _ref = compute_band_reference(d, freqs_all)
+        _ref_lg = compute_band_reference(d, freqs_all, ALPHA_LG_FLOOR_MV, "LG")
+        dn = apply_alpha_pivoted(d, _ref, _ref_lg, freqs_all)
+        X, y = preprocess_data(dn, labels, freqs_all, eliminate_std_dev=True)
+        X = add_features(X, y, freqs_all, False, False)
+        per_inner.append(select_topK_for_fold(X, y, seed, K_list, freqs_all))
+    out, audit = {}, {}
+    for K in K_list:
+        cnt, ranks = Counter(), {}
+        for topK, ranking, _ in per_inner:
+            for f in topK[int(K)]:
+                cnt[f] += 1
+            for f, r in ranking.set_index("Frequency")["rank"].items():
+                ranks.setdefault(int(f), []).append(int(r))
+        ordered = sorted(freqs_all, key=lambda f: (-cnt.get(f, 0),
+                         float(np.mean(ranks[f])) if f in ranks else 1e9))
+        out[int(K)] = [int(f) for f in ordered[:int(K)]]
+        audit[int(K)] = [{"freq": int(f), "n": int(cnt.get(f, 0)),
+                          "mr": round(float(np.mean(ranks[f])), 2)} for f in ordered[:8]]
+    return out, audit
+
+
+def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all, flags,
+             fixed_topK=None, option="sel"):
+    """One (fold, norm_mode) unit: transform, select-on-train (unless fixed_topK),
+    fit+score per K. fixed_topK={K: bands} bypasses selection (fixed options: nested/SEL)."""
     set_seed(seed)
     if norm == "baseline":
         _tr_n, _te_n, _ref, _ref_lg = df_tr.copy(), df_te.copy(), None, None
@@ -610,18 +687,23 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
     else:
         raise ValueError(f"unknown norm: {norm} (TEST_NORMS must be a subset of {{'alpha'}})")
     _t0 = time.time()
-    _Xtr50, _ytr50 = preprocess_data(_tr_n, labels, freqs_all)
-    _Xtr50 = add_features(_Xtr50, _ytr50, freqs_all, False, False)
-    _topK, _ranking, _sel_models = select_topK_for_fold(_Xtr50, _ytr50, seed, K_list, freqs_all)
-    _sel_time = time.time() - _t0
+    if fixed_topK is not None:
+        # fixed option: bands fixed externally, zero selection variance (no fitting)
+        _topK, _ranking, _sel_models = {int(K): list(v) for K, v in fixed_topK.items()}, None, None
+        _sel_time = 0.0
+    else:
+        _Xtr50, _ytr50 = preprocess_data(_tr_n, labels, freqs_all, eliminate_std_dev=True)
+        _Xtr50 = add_features(_Xtr50, _ytr50, freqs_all, False, False)
+        _topK, _ranking, _sel_models = select_topK_for_fold(_Xtr50, _ytr50, seed, K_list, freqs_all)
+        _sel_time = time.time() - _t0
     _raw_path = not (flags["scaling"] or flags["sg"] or flags["pca"]
                      or flags["lda"] or flags["qda"] or flags["ica"])
     records = []
     for _K in K_list:
         _fq = _topK[int(_K)]
-        _Xtr, _ytr = preprocess_data(_tr_n, labels, _fq)
+        _Xtr, _ytr = preprocess_data(_tr_n, labels, _fq, eliminate_std_dev=True)
         _Xtr = add_features(_Xtr, _ytr, _fq, False, False)
-        _Xte, _yte = preprocess_data(_te_n, labels, _fq)
+        _Xte, _yte = preprocess_data(_te_n, labels, _fq, eliminate_std_dev=True)
         _Xte = add_features(_Xte, _yte, _fq, False, False)
         if flags["scaling"]:
             _sc = StandardScaler()
@@ -649,7 +731,7 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
             _Xtr = _ic.fit_transform(_Xtr)
             _Xte = _ic.transform(_Xte)
         _n_feat = _Xtr.shape[1]
-        if int(_K) == 50 and _raw_path:
+        if int(_K) == 50 and _raw_path and _sel_models is not None:
             _fitted = list(_sel_models)
             _times = [0.0] * 5
         else:
@@ -657,13 +739,18 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
             _fitted, _times = list(_res[:5]), [float(t) for t in _res[5]]
         for _mi, _mn in enumerate(MODELS_ORDER):
             _yp = _fitted[_mi].predict(_Xte)
+            _yv = _yte.values
+            _m_eg = np.isin(_yv, ["E", "G"])
+            _m_hj = np.isin(_yv, ["H", "J"])
             records.append({
-                "fold": fold, "held_out_day": held_day, "norm_mode": norm,
+                "fold": fold, "held_out_day": held_day, "norm_mode": norm, "option": option,
                 "K": int(_K), "model": _mn,
                 "acc": float(accuracy_score(_yte, _yp)),
                 "prec": float(precision_score(_yte, _yp, average="weighted", zero_division=0)),
                 "rec": float(recall_score(_yte, _yp, average="weighted", zero_division=0)),
                 "f1": float(f1_score(_yte, _yp, average="weighted", zero_division=0)),
+                "acc_EG": float((_yp[_m_eg] == _yv[_m_eg]).mean()) if _m_eg.sum() else float("nan"),
+                "acc_HJ": float((_yp[_m_hj] == _yv[_m_hj]).mean()) if _m_hj.sum() else float("nan"),
                 "n_feat": int(_n_feat),
                 "train_time_s": float(_times[_mi]),
                 "selected_freqs": ",".join(str(f) for f in _fq),
@@ -787,7 +874,10 @@ def aggregate_stability(cv_results, topk_by_fold, rankings_by_fold, freqs_all, p
             for _f in sorted(cv_results["fold"].unique()):
                 for _freq in topk_by_fold[(_f, _n)][int(_K)]:
                     _cnt[_freq] += 1
-                for _freq, _r in rankings_by_fold[(_f, _n)].set_index("Frequency")["rank"].items():
+                _rk = rankings_by_fold[(_f, _n)]
+                if _rk is None:
+                    continue  # fixed-set arm: no ranking (zero selection variance)
+                for _freq, _r in _rk.set_index("Frequency")["rank"].items():
                     _ranks.setdefault(_freq, []).append(int(_r))
             for _freq in freqs_all:
                 _sel = int(_cnt.get(_freq, 0))
@@ -816,6 +906,7 @@ def aggregate_summary(cv_results, paper_norms, outdir, tag):
                 .groupby(["norm_mode", "K", "model"])
                 .agg(mean_acc=("acc", "mean"), std_acc=("acc", "std"),
                      mean_f1=("f1", "mean"), std_f1=("f1", "std"),
+                     mean_EG=("acc_EG", "mean"), mean_HJ=("acc_HJ", "mean"),
                      n_folds=("fold", "nunique"))
                 .reset_index().round(4))
     _su = os.path.join(outdir, f"{OUT_PREFIX}{tag}summary.csv")
@@ -1009,38 +1100,46 @@ def plot_confusion_matrix_pdf(y_true, y_pred, labels, save_path, model_name):
 
 def save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, labels,
                         freqs_all, outdir, tag, prefix, seed, norms):
-    """Fold-0 confusion matrices for the best K/model per norm (deterministic refit)."""
+    """Fold-0 confusion matrices for ALL 5 models per norm (deterministic refit).
+
+    Per model the best fold-0 K is picked, so every model gets exactly one PDF:
+    file names carry norm/model/K. RF refit uses RF-A (as in the run)."""
     _held0 = int(cv_results[cv_results['fold'] == 0]['held_out_day'].iloc[0])
     _df_tr0 = df_pivot_full[df_pivot_full['Day'] != _held0].reset_index(drop=True)
     _df_te0 = df_pivot_full[df_pivot_full['Day'] == _held0].reset_index(drop=True)
     _fitters = {
-        'RF': lambda: RandomForestClassifier(n_jobs=-1, random_state=seed),
+        'RF': lambda: RandomForestClassifier(n_estimators=500, min_samples_leaf=2,
+                                             n_jobs=-1, random_state=seed),
         'NB': lambda: GaussianNB(),
         'LR': lambda: make_pipeline(StandardScaler(), LogisticRegression(random_state=seed, max_iter=5000)),
         'GB': lambda: GradientBoostingClassifier(random_state=seed),
         'SVM': lambda: SVC(random_state=seed),
     }
     for _norm in norms:
-        _sub = cv_results[(cv_results['fold'] == 0) & (cv_results['norm_mode'] == _norm)]
-        _best = _sub.loc[_sub['acc'].idxmax()]
-        _K, _model = int(_best['K']), str(_best['model'])
-        _fq = [int(f) for f in str(_best['selected_freqs']).split(',')]
-        if _norm == 'baseline':
-            _tr_n, _te_n = _df_tr0.copy(), _df_te0.copy()
-        elif _norm == 'alpha':
-            _tr_n = apply_alpha_pivoted(_df_tr0, band_refs[(0, _norm)], band_refs_lg[(0, _norm)], FREQS_ALL)
-            _te_n = apply_alpha_pivoted(_df_te0, band_refs[(0, _norm)], band_refs_lg[(0, _norm)], FREQS_ALL)
-        else:
-            raise ValueError(f"unknown norm: {_norm}")
-        _Xtr, _ytr = preprocess_data(_tr_n, LABELS, _fq)
-        _Xtr = add_features(_Xtr, _ytr, _fq, False, False)
-        _Xte, _yte = preprocess_data(_te_n, LABELS, _fq)
-        _Xte = add_features(_Xte, _yte, _fq, False, False)
-        _cm_model = _fitters[_model]()
-        _cm_model.fit(_Xtr, _ytr)
-        _yp = _cm_model.predict(_Xte)
-        print(f'{_norm}: K={_K} model={_model} acc={float((_yp == _yte.values).mean()):.4f}')
-        plot_confusion_matrix_pdf(_yte, _yp, LABELS, outdir, f'{prefix}fold0_{_norm}_{_model}_K{_K}')
+        for _model in MODELS_ORDER:
+            _sub = cv_results[(cv_results['fold'] == 0) & (cv_results['norm_mode'] == _norm)
+                              & (cv_results['model'] == _model)]
+            if _sub.empty:
+                continue
+            _best = _sub.loc[_sub['acc'].idxmax()]
+            _K = int(_best['K'])
+            _fq = [int(f) for f in str(_best['selected_freqs']).split(',')]
+            if _norm == 'baseline':
+                _tr_n, _te_n = _df_tr0.copy(), _df_te0.copy()
+            elif _norm == 'alpha':
+                _tr_n = apply_alpha_pivoted(_df_tr0, band_refs[(0, _norm)], band_refs_lg[(0, _norm)], FREQS_ALL)
+                _te_n = apply_alpha_pivoted(_df_te0, band_refs[(0, _norm)], band_refs_lg[(0, _norm)], FREQS_ALL)
+            else:
+                raise ValueError(f"unknown norm: {_norm}")
+            _Xtr, _ytr = preprocess_data(_tr_n, LABELS, _fq, eliminate_std_dev=True)
+            _Xtr = add_features(_Xtr, _ytr, _fq, False, False)
+            _Xte, _yte = preprocess_data(_te_n, LABELS, _fq, eliminate_std_dev=True)
+            _Xte = add_features(_Xte, _yte, _fq, False, False)
+            _cm_model = _fitters[_model]()
+            _cm_model.fit(_Xtr, _ytr)
+            _yp = _cm_model.predict(_Xte)
+            print(f'{_norm}: K={_K} model={_model} acc={float((_yp == _yte.values).mean()):.4f}')
+            plot_confusion_matrix_pdf(_yte, _yp, LABELS, outdir, f'{prefix}{tag}fold0_{_norm}_{_model}_K{_K}')
 
 def run_guards(cv_results, band_refs, band_refs_lg, df_pivot_full, freqs_all, smoke):
     """Post-run diagnostics (mirrors the notebook guards cell; read-only)."""
@@ -1129,45 +1228,52 @@ def main():
     assert set(df_pivot_full["Day"].unique()) == {1, 2, 3, 4, 5}
     splits = list(GroupKFold(n_splits=5).split(
         df_pivot_full, groups=df_pivot_full["Day"].values))
+    folds_wanted = [0] if smoke else [0, 1, 2, 3, 4]
+    # SELECTED-only: fixed bands, no emergent/own-selection (no inner LOO).
+    SEL = {int(K): [int(f) for f in SELECTED[int(K)]] for K in K_list if int(K) in SELECTED}
+    topk_by_fold, held_by_fold = {}, {}
+    for fold in folds_wanted:
+        _tri, _tei = splits[fold]
+        _held = sorted(df_pivot_full.iloc[_tei]["Day"].unique())
+        assert len(_held) == 1, f"fold {fold} mixes days: {_held}"
+        held_by_fold[fold] = int(_held[0])
+        topk_by_fold[(fold, "SEL")] = {int(K): list(v) for K, v in SEL.items()}
+        topk_by_fold[(fold, "SEL_alpha")] = {int(K): list(v) for K, v in SEL.items()}
+    # ---- outer evaluation (SELECTED x baseline + alpha, 5 models via run_unit)
     tasks = []
-    for fold, (tri, tei) in enumerate(splits):
-        if smoke and fold > 0:
-            break
-        held = sorted(df_pivot_full.iloc[tei]["Day"].unique())
-        assert len(held) == 1, f"fold {fold} mixes days: {held}"
+    for fold in folds_wanted:
+        tri, tei = splits[fold]
         df_tr = df_pivot_full.iloc[tri].reset_index(drop=True)
         df_te = df_pivot_full.iloc[tei].reset_index(drop=True)
-        for norm in all_norms:
-            tasks.append((fold, held[0], norm, df_tr, df_te))
+        tasks.append((fold, held_by_fold[fold], "baseline", df_tr, df_te,
+                      topk_by_fold[(fold, "SEL")], sorted(SEL.keys()), "SEL"))
+        tasks.append((fold, held_by_fold[fold], "alpha", df_tr, df_te,
+                      topk_by_fold[(fold, "SEL_alpha")], sorted(SEL.keys()), "SEL_alpha"))
     workers = max(1, min(workers, len(tasks)))
     print(f"tasks={len(tasks)} workers={workers}", flush=True)
     outs = Parallel(n_jobs=workers, backend="loky")(
-        delayed(run_unit)(fold, held, norm, tr, te, seed, K_list,
-                          list(LABELS), list(FREQS_ALL), flags)
-        for fold, held, norm, tr, te in tasks)
-    records, topk_by_fold, rankings_by_fold, band_refs, band_refs_lg = [], {}, {}, {}, {}
-    for (fold, held, norm, _tr, _te), o in zip(tasks, outs):
+        delayed(run_unit)(fold, held, norm, tr, te, seed, kl,
+                          list(LABELS), list(FREQS_ALL), flags,
+                          fixed_topK=fx, option=opt)
+        for fold, held, norm, tr, te, fx, kl, opt in tasks)
+    records = []
+    for (_fold, _held, _norm, _tr, _te, _fx, _kl, _opt), o in zip(tasks, outs):
         records.extend(o["records"])
-        topk_by_fold[(fold, norm)] = o["topK"]
-        rankings_by_fold[(fold, norm)] = o["ranking"]
-        band_refs[(fold, norm)] = o["ref"]
-        band_refs_lg[(fold, norm)] = o["ref_lg"]
-    norm_order = {n: j for j, n in enumerate(list(all_norms))}
-    k_order = {int(k): j for j, k in enumerate(K_list)}
-    m_order = {m: j for j, m in enumerate(list(MODELS_ORDER))}
-    records.sort(key=lambda r: (r["fold"], norm_order[r["norm_mode"]],
-                                k_order[r["K"]], m_order[r["model"]]))
+    records.sort(key=lambda r: (r["norm_mode"], r["K"], MODELS_ORDER.index(r["model"]), r["fold"]))
     cv_results = pd.DataFrame(records)
     pf = os.path.join(outdir, f"{OUT_PREFIX}{tag}per_fold.csv")
     cv_results.to_csv(pf, index=False, sep=";")
-    print(f"Saved per-fold results -> {pf} ({cv_results.shape[0]} rows)", flush=True)
-    run_guards(cv_results, band_refs, band_refs_lg, df_pivot_full, list(FREQS_ALL), smoke)
-    stability_df, _universal = aggregate_stability(
-        cv_results, topk_by_fold, rankings_by_fold, list(FREQS_ALL), paper_norms, outdir, tag)
-    summary_df = aggregate_summary(cv_results, paper_norms, outdir, tag)
-    save_result_plots(cv_results, stability_df, list(FREQS_ALL), outdir, tag, OUT_PREFIX, list(all_norms))
-    save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, list(LABELS),
-                        list(FREQS_ALL), outdir, tag, OUT_PREFIX, seed, list(all_norms))
+    # One result row per frequency group x algorithm x norm.
+    summary = (cv_results.groupby(["norm_mode", "K", "model"])
+               .agg(mean_acc=("acc", "mean"), std_acc=("acc", "std"),
+                    mean_f1=("f1", "mean"), std_f1=("f1", "std"),
+                    mean_EG=("acc_EG", "mean"), mean_HJ=("acc_HJ", "mean"),
+                    n_folds=("fold", "nunique"))
+               .reset_index().round(4)
+               .sort_values(["norm_mode", "K", "model"]).reset_index(drop=True))
+    sp = os.path.join(outdir, f"{OUT_PREFIX}{tag}summary.csv")
+    summary.to_csv(sp, index=False, sep=";")
+    print(summary.to_string(index=False), flush=True)
     t_all = time.time() - t_all
     tt = cv_results.groupby("model")["train_time_s"].mean().round(3).to_dict()
     meta = {"seed": seed, "workers": workers, "smoke": smoke,
@@ -1181,9 +1287,10 @@ def main():
                          "pandas": pd.__version__,
                          "sklearn": __import__("sklearn").__version__,
                          "scipy": __import__("scipy").__version__}}
+    meta["options"] = ["SEL", "SEL_alpha"]
+    meta["SELECTED"] = {str(k): [int(f) for f in v] for k, v in SEL.items()}
     mp = os.path.join(outdir, f"{OUT_PREFIX}{tag}run_meta.json")
     json.dump(meta, open(mp, "w", encoding="utf-8"), indent=2, sort_keys=True)
-    print(f"Saved {mp}; wall {t_all:.1f}s; mean train_time_s/model: {tt}", flush=True)
 
 if __name__ == "__main__":
     main()
