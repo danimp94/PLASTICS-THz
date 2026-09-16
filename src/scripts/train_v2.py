@@ -31,18 +31,14 @@ from scipy.signal import savgol_filter
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-OUTDIR = os.path.join(REPO, 'results', 'exp_5') 
-OUT_PREFIX = 'lodo_'  # output filename prefix
+OUTDIR = os.path.join(REPO, 'results', 'exp_59') 
+OUT_PREFIX = 'lodo_'                             # output filename prefix
 WORKERS = os.cpu_count() or 4                    # parallel (fold, norm) processes
 SMOKE = False                                    # True -> fold 0 only, K=[10, 3]
 SEED = 42                                        # fixed seed for reproducibility (random_state, np.random, random.seed)
 
-K_LIST = [50, 20, 10, 5, 3, 1]  # final: SELECTED x baseline + alpha, all K
-# LODO-selected fixed sets, NESTED (each K contains all smaller Ks), SAME bands both norms.
-# K3 = [360,400,460] fixed. K1 = [360] (top member by pooled mean rank;
-# v3-nested unanimous core). Larger Ks = previous set + top pooled-vote bands
-# (10 outer-fold own-selections: 5 baseline + 5 alpha; votes desc, mean rank asc):
-# K5 adds 330,320; K10 adds 350,310,370,420,230; K20 adds 450,500,200,380,510,430,340,390,410,290.
+K_LIST = [50, 20, 10, 5, 3, 1] 
+
 SELECTED = {
     1:  [360],
     3:  [360, 400, 460],
@@ -52,7 +48,9 @@ SELECTED = {
     50: list(range(100, 591, 10)),
 }
 FREQS_ALL = list(range(100, 591, 10))
+
 MODELS_ORDER = ['RF', 'NB', 'LR', 'GB', 'SVM']
+
 THICKNESS_MM = {
     'A': 0.20,   # PE/tie/EVOH/tie/PE/Adhesive/PE/tie/EVOH/tie/PE
     'B': 0.57,   # PE/tie/EVOH/tie/PE (Admer AT1707E)
@@ -67,21 +65,21 @@ THICKNESS_MM = {
     'L': 1.85,   # PVC
     'O': 0.12,   # PET
 }
-ALPHA_REF_FLOOR_MV = 0.5  # |HG median| below this ~= dead-band noise (per-window std ~= 0.13 mV)
-ALPHA_LG_FLOOR_MV = 3.0  # LG twin (~2.5-3 sigma of per-window LG noise ~= 1.14 mV)
+ALPHA_REF_FLOOR_MV = 0.5  # |HG median| below this ~= dead-band noise 
+ALPHA_LG_FLOOR_MV = 3.0 
+
 WINDOW_S = 0.1
+
 LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'O']
-TEST_NORMS = ['alpha']  # normalizations tested against baseline; subset of {'alpha'} (extension point)
+TEST_NORMS = ['alpha']  # normalizations tested against baseline; subset of {'alpha'} 
 
 NORM_LABELS = {'baseline': 'baseline T(f)', 'alpha': 'alpha(f) = -ln(T)/d',
                }
 APPLY_SCALING = True
-APPLY_SG = False
+APPLY_SG = False     # AFTER windowing
 SG_W = 3
 SG_P = 2
-# Pre-windowing SG: temporal denoise of raw LG/HG inside each frequency dwell,
-# BEFORE windowing 
-APPLY_PRE_SG = False
+APPLY_PRE_SG = False # BEFORE windowing
 PRE_SG_W = 11
 PRE_SG_P = 3
 APPLY_PCA = False
@@ -89,30 +87,29 @@ APPLY_LDA = False
 APPLY_QDA = False
 APPLY_ICA = False
 
+TRAIN_DIR = 'data/experiment_5_plastics/processed/'
+
 def set_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
     return seed
 
-
 def load_data_with_groups(input_path):
-    """Like load_data_from_directory but keeps filename -> Day/SourceFile grouping keys."""
+    """ Load data but keeps filename -> Day/SourceFile grouping keys."""
     frames = []
     for file in sorted(os.listdir(input_path)):
         if file.endswith('.csv'):
             df = pd.read_csv(os.path.join(input_path, file), delimiter=';', header=0)
             df['SourceFile'] = file
-            # Day = leading number after polymer letter
-            m = re.match(r'[A-Z](\d+)_', file)
+            m = re.match(r'[A-Z](\d+)_', file) # Day = leading number after polymer letter
             df['Day'] = int(m.group(1)) if m else -1
             frames.append(df)
     data = pd.concat(frames, ignore_index=True)
     data['Sample'] = data['Sample'].str[0]  # same cleaning as prepare_train_test_data
     return data
 
-def load_grouped_data(notebook_dir,
-                   train_dir='data/experiment_5_plastics/processed/'):
-    """Load the single-directory long-format frame (all days; windowing happens AFTER, once)."""
+def load_grouped_data(notebook_dir, train_dir=TRAIN_DIR):
+    """Load single-directory long-format frame (all days; windowing happens AFTER, once)."""
     data = load_data_with_groups(os.path.normpath(os.path.join(notebook_dir, '..', '..', train_dir)))
     keep = [c for c in ['Frequency (GHz)', 'LG (mV)', 'HG (mV)', 'Sample', 'Day', 'SourceFile'] if c in data.columns]
     return data[keep]
@@ -159,16 +156,16 @@ def grouped_pivot(df, data_percentage):
     return df_pivot[['Sample', 'Day', 'SourceFile'] + feat_cols]
 
 def preprocess_data(df, labels, freqs, eliminate_std_dev=False, eliminate_LG=False, drop_sample=True):
-    # Reduce number of different samples for testing
-    X_ = df[df['Sample'].isin(labels)]
 
+    # If desired, reduce number of different samples for testing
+    X_ = df[df['Sample'].isin(labels)]
     y_ = X_['Sample']
 
     if drop_sample:
         X_ = X_.drop(columns=['Sample'])
 
     if freqs:
-        # Subset of specific frequencies to use as input features (or without mean)
+        # Subset of specific frequencies and features to use as input 
         columns = [f'{freq}.0 HG (mV) mean' for freq in freqs] + \
                   [f'{freq}.0 LG (mV) mean' for freq in freqs] + \
                   [f'{freq}.0 HG (mV)' for freq in freqs] + \
@@ -236,9 +233,8 @@ def add_features(X, y, subset_freqs, HG_diff=True, LG_diff=True):
                     (mean_std_df['Sample'] == sample)
                 ]['HG_mean'].values[0]
 
-
                 # 1) Inputs: xt - (xt-1) --First-order differences
-                # 2) Inputs: (xt/(xt-1)) - 1 --Escalado relativo
+                # 2) Inputs: (xt/(xt-1)) - 1 --Relative differences
 
                 # Calculate and store difference
                 X.loc[idx, f'{freq}.0 HG diff'] = X.loc[idx, f'{freq}.0 HG (mV) mean'] - prev_hg
@@ -1256,9 +1252,12 @@ def main():
                           list(LABELS), list(FREQS_ALL), flags,
                           fixed_topK=fx, option=opt)
         for fold, held, norm, tr, te, fx, kl, opt in tasks)
-    records = []
+    records, band_refs, band_refs_lg = [], {}, {}
     for (_fold, _held, _norm, _tr, _te, _fx, _kl, _opt), o in zip(tasks, outs):
         records.extend(o["records"])
+        if _norm == "alpha":
+            band_refs[(_fold, "alpha")] = o["ref"]
+            band_refs_lg[(_fold, "alpha")] = o["ref_lg"]
     records.sort(key=lambda r: (r["norm_mode"], r["K"], MODELS_ORDER.index(r["model"]), r["fold"]))
     cv_results = pd.DataFrame(records)
     pf = os.path.join(outdir, f"{OUT_PREFIX}{tag}per_fold.csv")
@@ -1274,6 +1273,17 @@ def main():
     sp = os.path.join(outdir, f"{OUT_PREFIX}{tag}summary.csv")
     summary.to_csv(sp, index=False, sep=";")
     print(summary.to_string(index=False), flush=True)
+    _tk = {}
+    for _f in folds_wanted:
+        _tk[(_f, "baseline")] = topk_by_fold[(_f, "SEL")]
+        _tk[(_f, "alpha")] = topk_by_fold[(_f, "SEL_alpha")]
+    _rk = {(_f, _n): None for _f in folds_wanted for _n in ("baseline", "alpha")}
+    _stab, _univ = aggregate_stability(cv_results, _tk, _rk, list(FREQS_ALL),
+                                       ["baseline", "alpha"], outdir, tag)
+    save_result_plots(cv_results, _stab, list(FREQS_ALL), outdir, tag, OUT_PREFIX,
+                      ["baseline", "alpha"])
+    save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, list(LABELS),
+                        list(FREQS_ALL), outdir, tag, OUT_PREFIX, seed, ["baseline", "alpha"])
     t_all = time.time() - t_all
     tt = cv_results.groupby("model")["train_time_s"].mean().round(3).to_dict()
     meta = {"seed": seed, "workers": workers, "smoke": smoke,
