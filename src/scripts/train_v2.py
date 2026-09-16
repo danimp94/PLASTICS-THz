@@ -31,7 +31,7 @@ from scipy.signal import savgol_filter
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-OUTDIR = os.path.join(REPO, 'results', 'exp_59')
+OUTDIR = os.path.join(REPO, 'results', 'exp_5_v2')
 OUT_PREFIX = 'lodo_'  # output filename prefix
 WORKERS = os.cpu_count() or 4  # parallel (fold, norm) processes
 SMOKE = False  # True -> fold 0 only, K=[10, 3]
