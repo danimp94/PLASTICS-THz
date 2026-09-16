@@ -844,7 +844,6 @@ def aggregate_stability(cv_results, topk_by_fold, rankings_by_fold, freqs_all, p
     """Stability table + universal sets (mirrors the notebook stability cell)."""
     _n_folds_eff = cv_results["fold"].nunique()
     _req = 4 if _n_folds_eff == 5 else _n_folds_eff
-    print(f"universal threshold: >= {_req}/{_n_folds_eff} folds", flush=True)
     _stab_rows = []
     for _n in paper_norms:
         for _K in sorted(cv_results["K"].unique()):
@@ -874,8 +873,6 @@ def aggregate_stability(cv_results, topk_by_fold, rankings_by_fold, freqs_all, p
             _sub = stability_df[(stability_df["norm_mode"] == _n) & (stability_df["K"] == int(_K))
                              & stability_df["in_universal"]]
             universal[(_n, int(_K))] = sorted(_sub["freq"].tolist())
-            print(f"universal-{_K} [{_n}]: {universal[(_n, int(_K))]}", flush=True)
-    print(f"Saved {_sp} ({stability_df.shape[0]} rows)", flush=True)
     return stability_df, universal
 
 def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix, norms):
@@ -911,10 +908,10 @@ def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix, 
                 label=NORM_LABELS[_n]
             )
 
-            for _bar, _value in zip(_bars, _mu):
+            for _bar, _value, _err in zip(_bars, _mu, _sd):
                 _ax.text(
                     _bar.get_x() + _bar.get_width() / 2,
-                    _bar.get_height() + 0.02,
+                    _bar.get_height() + _err + 0.02,
                     f'{_value:.1%}',
                     ha='center',
                     va='bottom',
