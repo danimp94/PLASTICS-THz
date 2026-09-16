@@ -31,7 +31,7 @@ from scipy.signal import savgol_filter
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-SEED = 42                                        # fixed seed for reproducibility (random_state, np.random, random.seed)
+OUTDIR = os.path.join(REPO, 'results', 'exp_59')
 OUT_PREFIX = 'lodo_'  # output filename prefix
 WORKERS = os.cpu_count() or 4  # parallel (fold, norm) processes
 SMOKE = False  # True -> fold 0 only, K=[10, 3]
@@ -654,8 +654,7 @@ def nested_emergent_sets_alpha(df_outer_tr, seed, K_list, labels, freqs_all):
 
 def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all, flags,
              fixed_topK=None, option="sel"):
-    """One (fold, norm_mode) unit: transform, select-on-train (unless fixed_topK),
-    fit+score per K. fixed_topK={K: bands} bypasses selection (fixed options: nested/SEL)."""
+    """One (fold, norm) unit: transform, fit+score per K. fixed_topK bypasses selection."""
     set_seed(seed)
     if norm == "baseline":
         _tr_n, _te_n, _ref, _ref_lg = df_tr.copy(), df_te.copy(), None, None
@@ -668,7 +667,6 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
         raise ValueError(f"unknown norm: {norm} (TEST_NORMS must be a subset of {{'alpha'}})")
     _t0 = time.time()
     if fixed_topK is not None:
-        # fixed option: bands fixed externally, zero selection variance (no fitting)
         _topK, _ranking, _sel_models = {int(K): list(v) for K, v in fixed_topK.items()}, None, None
         _sel_time = 0.0
     else:
@@ -1064,13 +1062,12 @@ def plot_confusion_matrix_pdf(y_true, y_pred, labels, save_path, model_name):
 
 def save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, labels,
                         freqs_all, outdir, tag, prefix, seed, norms):
-    """Fold-0 confusion matrices for ALL 5 models per norm (deterministic refit).
+    """Pooled confusion per (norm, K) for the best model by 5-fold mean acc.
 
-    Per model the best fold-0 K is picked, so every model gets exactly one PDF:
-    file names carry norm/model/K. RF refit uses RF-A (as in the run)."""
-    _held0 = int(cv_results[cv_results['fold'] == 0]['held_out_day'].iloc[0])
-    _df_tr0 = df_pivot_full[df_pivot_full['Day'] != _held0].reset_index(drop=True)
-    _df_te0 = df_pivot_full[df_pivot_full['Day'] == _held0].reset_index(drop=True)
+    K fixed by the loop; model = argmax of raw (unrounded) fold-mean acc,
+    tiebreak by MODELS_ORDER. Predictions are concatenated over all folds
+    (each sample is in exactly one test fold), one plot call per (norm, K).
+    Refit recipe matches run_unit; alpha uses each fold's own train-fold refs."""
     _fitters = {
         'RF': lambda: RandomForestClassifier(n_estimators=500, min_samples_leaf=2,
                                              n_jobs=-1, random_state=seed),
@@ -1079,31 +1076,45 @@ def save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, labe
         'GB': lambda: GradientBoostingClassifier(random_state=seed),
         'SVM': lambda: SVC(random_state=seed),
     }
+    _folds = sorted(cv_results['fold'].unique())
     for _norm in norms:
-        for _model in MODELS_ORDER:
-            _sub = cv_results[(cv_results['fold'] == 0) & (cv_results['norm_mode'] == _norm)
-                              & (cv_results['model'] == _model)]
-            if _sub.empty:
+        for _K in sorted(cv_results['K'].unique()):
+            _means = (cv_results[(cv_results['norm_mode'] == _norm) & (cv_results['K'] == int(_K))]
+                      .groupby('model')['acc'].mean())
+            if _means.empty:
                 continue
-            _best = _sub.loc[_sub['acc'].idxmax()]
-            _K = int(_best['K'])
-            _fq = [int(f) for f in str(_best['selected_freqs']).split(',')]
-            if _norm == 'baseline':
-                _tr_n, _te_n = _df_tr0.copy(), _df_te0.copy()
-            elif _norm == 'alpha':
-                _tr_n = apply_alpha_pivoted(_df_tr0, band_refs[(0, _norm)], band_refs_lg[(0, _norm)], FREQS_ALL)
-                _te_n = apply_alpha_pivoted(_df_te0, band_refs[(0, _norm)], band_refs_lg[(0, _norm)], FREQS_ALL)
-            else:
-                raise ValueError(f"unknown norm: {_norm}")
-            _Xtr, _ytr = preprocess_data(_tr_n, LABELS, _fq, eliminate_std_dev=True)
-            _Xtr = add_features(_Xtr, _ytr, _fq, False, False)
-            _Xte, _yte = preprocess_data(_te_n, LABELS, _fq, eliminate_std_dev=True)
-            _Xte = add_features(_Xte, _yte, _fq, False, False)
-            _cm_model = _fitters[_model]()
-            _cm_model.fit(_Xtr, _ytr)
-            _yp = _cm_model.predict(_Xte)
-            print(f'{_norm}: K={_K} model={_model} acc={float((_yp == _yte.values).mean()):.4f}')
-            plot_confusion_matrix_pdf(_yte, _yp, LABELS, outdir, f'{prefix}{tag}fold0_{_norm}_{_model}_K{_K}')
+            _best_acc = float(_means.max())
+            _model = min([m for m in _means.index if float(_means[m]) == _best_acc],
+                         key=lambda m: MODELS_ORDER.index(m))
+            _fq = [int(f) for f in str(cv_results[(cv_results['norm_mode'] == _norm)
+                                                  & (cv_results['K'] == int(_K))
+                                                  & (cv_results['model'] == _model)]
+                                          .iloc[0]['selected_freqs']).split(',')]
+            _yt_all, _yp_all = [], []
+            for _f in _folds:
+                _held = int(cv_results[cv_results['fold'] == _f]['held_out_day'].iloc[0])
+                _dtr = df_pivot_full[df_pivot_full['Day'] != _held].reset_index(drop=True)
+                _dte = df_pivot_full[df_pivot_full['Day'] == _held].reset_index(drop=True)
+                if _norm == 'baseline':
+                    _tr_n, _te_n = _dtr.copy(), _dte.copy()
+                elif _norm == 'alpha':
+                    _tr_n = apply_alpha_pivoted(_dtr, band_refs[(_f, _norm)], band_refs_lg[(_f, _norm)], freqs_all)
+                    _te_n = apply_alpha_pivoted(_dte, band_refs[(_f, _norm)], band_refs_lg[(_f, _norm)], freqs_all)
+                else:
+                    raise ValueError(f"unknown norm: {_norm}")
+                _Xtr, _ytr = preprocess_data(_tr_n, labels, _fq, eliminate_std_dev=True)
+                _Xtr = add_features(_Xtr, _ytr, _fq, False, False)
+                _Xte, _yte = preprocess_data(_te_n, labels, _fq, eliminate_std_dev=True)
+                _Xte = add_features(_Xte, _yte, _fq, False, False)
+                _cm_model = _fitters[_model]()
+                _cm_model.fit(_Xtr, _ytr)
+                _yp = _cm_model.predict(_Xte)
+                _yt_all.append(_yte.values)
+                _yp_all.append(_yp)
+            _yt = pd.Series(np.concatenate(_yt_all))
+            _yp = np.concatenate(_yp_all)
+            print(f'{_norm}: K={int(_K)} model={_model} mean_acc={_best_acc:.4f} pooled_acc={float((_yp == _yt.values).mean()):.4f}')
+            plot_confusion_matrix_pdf(_yt, _yp, labels, outdir, f'{prefix}{tag}pooled_{_norm}_K{int(_K)}_{_model}')
 
 def main():
     outdir, workers, smoke, seed = OUTDIR, WORKERS, SMOKE, SEED
@@ -1130,7 +1141,7 @@ def main():
     splits = list(GroupKFold(n_splits=5).split(
         df_pivot_full, groups=df_pivot_full["Day"].values))
     folds_wanted = [0] if smoke else [0, 1, 2, 3, 4]
-    # SELECTED-only: fixed bands, no emergent/own-selection (no inner LOO).
+    # SELECTED-only: fixed bands (same dict aliased to both norm keys).
     SEL = {int(K): [int(f) for f in SELECTED[int(K)]] for K in K_list if int(K) in SELECTED}
     topk_by_fold, held_by_fold = {}, {}
     for fold in folds_wanted:
@@ -1138,8 +1149,9 @@ def main():
         _held = sorted(df_pivot_full.iloc[_tei]["Day"].unique())
         assert len(_held) == 1, f"fold {fold} mixes days: {_held}"
         held_by_fold[fold] = int(_held[0])
-        topk_by_fold[(fold, "SEL")] = {int(K): list(v) for K, v in SEL.items()}
-        topk_by_fold[(fold, "SEL_alpha")] = {int(K): list(v) for K, v in SEL.items()}
+        _sel = {int(K): list(v) for K, v in SEL.items()}
+        topk_by_fold[(fold, "SEL")] = _sel
+        topk_by_fold[(fold, "SEL_alpha")] = _sel
     # ---- outer evaluation (SELECTED x baseline + alpha, 5 models via run_unit)
     tasks = []
     for fold in folds_wanted:
