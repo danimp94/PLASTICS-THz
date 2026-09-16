@@ -13,7 +13,7 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 import matplotlib
-matplotlib.use("Agg")  
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 from sklearn.decomposition import FastICA
@@ -31,13 +31,13 @@ from scipy.signal import savgol_filter
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
-OUTDIR = os.path.join(REPO, 'results', 'exp_59') 
-OUT_PREFIX = 'lodo_'                             # output filename prefix
-WORKERS = os.cpu_count() or 4                    # parallel (fold, norm) processes
-SMOKE = False                                    # True -> fold 0 only, K=[10, 3]
 SEED = 42                                        # fixed seed for reproducibility (random_state, np.random, random.seed)
+OUT_PREFIX = 'lodo_'  # output filename prefix
+WORKERS = os.cpu_count() or 4  # parallel (fold, norm) processes
+SMOKE = False  # True -> fold 0 only, K=[10, 3]
+SEED = 42  # fixed seed for reproducibility (random_state, np.random, random.seed)
 
-K_LIST = [50, 20, 10, 5, 3, 1] 
+K_LIST = [50, 20, 10, 5, 3, 1]
 
 SELECTED = {
     1:  [360],
@@ -65,21 +65,20 @@ THICKNESS_MM = {
     'L': 1.85,   # PVC
     'O': 0.12,   # PET
 }
-ALPHA_REF_FLOOR_MV = 0.5  # |HG median| below this ~= dead-band noise 
-ALPHA_LG_FLOOR_MV = 3.0 
+ALPHA_REF_FLOOR_MV = 0.5  # |HG median| below this ~= dead-band noise
+ALPHA_LG_FLOOR_MV = 3.0
 
 WINDOW_S = 0.1
 
 LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'O']
-TEST_NORMS = ['alpha']  # normalizations tested against baseline; subset of {'alpha'} 
+TEST_NORMS = ['alpha']  # normalizations tested against baseline; subset of {'alpha'}
 
-NORM_LABELS = {'baseline': 'baseline T(f)', 'alpha': 'alpha(f) = -ln(T)/d',
-               }
+NORM_LABELS = {'baseline': 'baseline T(f)', 'alpha': 'alpha(f) = -ln(T)/d'}
 APPLY_SCALING = True
-APPLY_SG = False     # AFTER windowing
+APPLY_SG = False  # AFTER windowing
 SG_W = 3
 SG_P = 2
-APPLY_PRE_SG = False # BEFORE windowing
+APPLY_PRE_SG = False  # BEFORE windowing
 PRE_SG_W = 11
 PRE_SG_P = 3
 APPLY_PCA = False
@@ -157,7 +156,6 @@ def grouped_pivot(df, data_percentage):
 
 def preprocess_data(df, labels, freqs, eliminate_std_dev=False, eliminate_LG=False, drop_sample=True):
 
-    # If desired, reduce number of different samples for testing
     X_ = df[df['Sample'].isin(labels)]
     y_ = X_['Sample']
 
@@ -173,17 +171,11 @@ def preprocess_data(df, labels, freqs, eliminate_std_dev=False, eliminate_LG=Fal
                   [f'{freq}.0 HG (mV) std deviation' for freq in freqs] + \
                   [f'{freq}.0 LG (mV) std deviation' for freq in freqs] + \
                   ['Sample']
-
-        # Filter columns that exist in X_
         existing_columns = [col for col in columns if col in X_.columns]
-
-        # Check if existing_columns is empty
         if not existing_columns:
             print("No matching columns found in X_.")
         else:
             X_ = X_[existing_columns]
-
-        # Sort columns by frequency value
         X_ = X_.reindex(sorted(X_.columns), axis=1)
 
     if eliminate_std_dev:
@@ -199,8 +191,6 @@ def preprocess_data(df, labels, freqs, eliminate_std_dev=False, eliminate_LG=Fal
 def add_features(X, y, subset_freqs, HG_diff=True, LG_diff=True):
 
     X['Sample'] = y
-
-    # Initialize a dictionary to store results
     mean_std_dict = {}
 
     for freq in subset_freqs:
@@ -210,9 +200,7 @@ def add_features(X, y, subset_freqs, HG_diff=True, LG_diff=True):
             agg_dict['LG_mean'] = (f'{freq}.0 LG (mV) mean', 'mean')
         if f'{freq}.0 HG (mV) mean' in X.columns:
             agg_dict['HG_mean'] = (f'{freq}.0 HG (mV) mean', 'mean')
-
         mean_std_dict[freq] = X.groupby('Sample').agg(**agg_dict).reset_index()
-
         mean_std_dict[freq]['Frequency'] = freq
 
     # Concatenate all DataFrames in the dictionary
@@ -250,9 +238,7 @@ def add_features(X, y, subset_freqs, HG_diff=True, LG_diff=True):
                 # X.loc[idx, f'{freq}.0 LG diff'] = X.loc[idx, f'{freq}.0 LG (mV) mean'] - prev_lg
                 X.loc[idx, f'{freq}.0 LG relative diff'] = (X.loc[idx, f'{freq}.0 LG (mV) mean'] / prev_lg) -1
 
-    # Drop the 'Sample' column
     X = X.drop(columns=['Sample'])
-
     return X
 
 def _lr_coef(lr_model):
@@ -266,7 +252,7 @@ def _lr_coef(lr_model):
 def train_models(X_train, y_train, seed):
     training_times = []
 
-    # Random Forest RF-A (v3/v4 recipe: same algorithm, tuned depth/trees)
+    # RF-A: tuned depth/trees
     start_time = time.time()
     rf_model = RandomForestClassifier(n_estimators=500, min_samples_leaf=2, n_jobs=-1, random_state=seed)
     rf_model.fit(X_train, y_train)
@@ -332,7 +318,7 @@ def get_feature_importances(rf_model, lr_model, gb_model, nb_model, svm_model, X
         plt.rcParams['font.family'] = 'Arial'  # or 'Arial', 'Times New Roman', etc.
 
         # Create directory for saving feature importance plots
-        feature_imp_path = os.path.normpath(os.path.join(notebook_dir, '..', '..', 'data/results/feature_importance_detailed/'))
+        feature_imp_path = os.path.normpath(os.path.join(OUTDIR, 'feature_importance_detailed/'))
         if not os.path.exists(feature_imp_path):
             os.makedirs(feature_imp_path)
 
@@ -604,8 +590,6 @@ def select_topK_for_fold(Xtr_df, ytr, seed, K_list=K_LIST, freqs_all=FREQS_ALL):
     ranking = frequency_scores_from_importances(imp, feat_cols, freqs_all)
     topK = {int(K): ranking['Frequency'].head(int(K)).tolist() for K in K_list}
     return topK, ranking, (rf_m, nb_m, lr_m, gb_m, svm_m)
-
-# END SYNC
 
 def nested_emergent_sets(df_outer_tr, seed, K_list, labels, freqs_all):
     """Inner LOO over the 4 outer-train days -> ({K: emergent bands}, audit).
@@ -896,22 +880,6 @@ def aggregate_stability(cv_results, topk_by_fold, rankings_by_fold, freqs_all, p
     print(f"Saved {_sp} ({stability_df.shape[0]} rows)", flush=True)
     return stability_df, universal
 
-def aggregate_summary(cv_results, paper_norms, outdir, tag):
-    """Mean±std summary (mirrors the notebook summary cell)."""
-    summary_df = (cv_results[cv_results["norm_mode"].isin(paper_norms)]
-                .groupby(["norm_mode", "K", "model"])
-                .agg(mean_acc=("acc", "mean"), std_acc=("acc", "std"),
-                     mean_f1=("f1", "mean"), std_f1=("f1", "std"),
-                     mean_EG=("acc_EG", "mean"), mean_HJ=("acc_HJ", "mean"),
-                     n_folds=("fold", "nunique"))
-                .reset_index().round(4))
-    _su = os.path.join(outdir, f"{OUT_PREFIX}{tag}summary.csv")
-    summary_df.to_csv(_su, index=False, sep=";")
-    print(f"Saved {_su} ({summary_df.shape[0]} rows)", flush=True)
-    print(summary_df.pivot_table(index=["K", "model"], columns="norm_mode",
-                               values="mean_acc").round(4).to_string())
-    return summary_df
-
 def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix, norms):
     """Grouped accuracy bars per K + selection-stability bars.
     norms sets the compared arms, baseline first (bar offsets generalize to N arms).
@@ -1136,69 +1104,6 @@ def save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, labe
             _yp = _cm_model.predict(_Xte)
             print(f'{_norm}: K={_K} model={_model} acc={float((_yp == _yte.values).mean()):.4f}')
             plot_confusion_matrix_pdf(_yte, _yp, LABELS, outdir, f'{prefix}{tag}fold0_{_norm}_{_model}_K{_K}')
-
-def run_guards(cv_results, band_refs, band_refs_lg, df_pivot_full, freqs_all, smoke):
-    """Post-run diagnostics (mirrors the notebook guards cell; read-only)."""
-    _n_folds = cv_results["fold"].nunique()
-    print(f"folds={_n_folds}, norms={sorted(cv_results['norm_mode'].unique())}, "
-          f"K={sorted(cv_results['K'].unique())}", flush=True)
-    _cov = cv_results[["fold", "held_out_day"]].drop_duplicates().sort_values("fold")
-    print(_cov.to_string(index=False))
-    assert _cov["held_out_day"].is_unique, "a day was held out twice"
-    if not smoke:
-        assert set(_cov["held_out_day"]) == {1, 2, 3, 4, 5}, "LODO must cover days 1..5"
-    _gkf_check = GroupKFold(n_splits=5)
-    for _f, (_a, _b) in enumerate(_gkf_check.split(df_pivot_full,
-                                                  groups=df_pivot_full["Day"].values)):
-        if smoke and _f > 0:
-            break
-        assert set(df_pivot_full.iloc[_a]["Day"]) & set(df_pivot_full.iloc[_b]["Day"]) == set()
-    print("day overlap check: OK (train/test days disjoint per fold)")
-    print(df_pivot_full.groupby("Day").size().to_string())
-    _core_dead = {110, 120, 130, 140, 150, 160, 170, 180, 190}
-    for (_f, _n), _r in sorted(band_refs.items()):
-        if _n != "alpha" or (smoke and _f > 0):
-            continue
-        _live = {f for f in freqs_all if np.isfinite(_r.get(f, float("nan"))) and _r[f] > 0}
-        _dead = set(freqs_all) - _live
-        assert _core_dead <= _dead, f"fold {_f}: core dead bands live?! {sorted(_core_dead - _dead)}"
-        print(f"fold {_f}: {len(_live)} live / {len(_dead)} dead bands; dead={sorted(_dead)}")
-    print("reference check: OK (train-fold medians; dead = NaN, never scaled)")
-    _core_dead_lg = {100} | set(range(310, 591, 10))
-    for (_f, _n), _r in sorted(band_refs_lg.items()):
-        if _n != "alpha" or (smoke and _f > 0):
-            continue
-        _live = {f for f in freqs_all if np.isfinite(_r.get(f, float("nan"))) and _r[f] > 0}
-        _dead = set(freqs_all) - _live
-        assert _core_dead_lg <= _dead, f"fold {_f}: core LG-dead bands live?! {sorted(_core_dead_lg - _dead)}"
-        print(f"fold {_f} LG: {len(_live)} live / {len(_dead)} dead bands; dead={sorted(_dead)}")
-    print("LG reference check: OK (train-fold medians; dead = NaN, never scaled)")
-    if (0, "alpha") not in band_refs:
-        print("alpha not selected: skipping alpha guards", flush=True)
-        return
-    _r0 = band_refs[(0, "alpha")]
-    _r0_lg = band_refs_lg[(0, "alpha")]
-    _day0 = int(_cov.iloc[0]["held_out_day"])
-    _a0 = apply_alpha_pivoted(
-        df_pivot_full[df_pivot_full["Day"] == _day0].reset_index(drop=True), _r0, _r0_lg, freqs_all)
-    _num0 = _a0.drop(columns=["Sample", "Day", "SourceFile"]).apply(pd.to_numeric, errors="coerce")
-    assert bool(np.isfinite(_num0.values).all()), "non-finite alpha values"
-    _dead0 = [f for f in freqs_all if not (np.isfinite(_r0.get(f, float("nan"))) and _r0[f] > 0)]
-    for _f in _dead0:
-        _col = _a0[f"{_f}.0 HG (mV) mean"].values
-        assert bool((_col == 0.0).all()), f"dead band {_f} not zero-filled (thickness leak!)"
-    _dead0_lg = [f for f in freqs_all if not (np.isfinite(_r0_lg.get(f, float("nan"))) and _r0_lg[f] > 0)]
-    for _f in _dead0_lg:
-        _col = _a0[f"{_f}.0 LG (mV) mean"].values
-        assert bool((_col == 0.0).all()), f"dead LG band {_f} not zero-filled (thickness leak!)"
-    print(f"alpha checks OK: finite ({_num0.shape[1]} cols), "
-          f"{len(_dead0)} dead HG + {len(_dead0_lg)} dead LG bands exactly 0 (no thickness leak)", flush=True)
-    _raw0 = df_pivot_full[df_pivot_full["Day"] == _day0].reset_index(drop=True)
-    for _c in [c for c in _a0.columns if 'std deviation' in c]:
-        assert bool((pd.to_numeric(_a0[_c], errors="coerce").values
-                     == pd.to_numeric(_raw0[_c], errors="coerce").values).all()), \
-            f"std col {_c} modified by alpha transform (must stay raw in both arms)"
-    print("std check OK: std-deviation cols pass through raw (symmetric arms)", flush=True)
 
 def main():
     outdir, workers, smoke, seed = OUTDIR, WORKERS, SMOKE, SEED
