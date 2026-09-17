@@ -75,16 +75,16 @@ TEST_NORMS = ['alpha']  # normalizations tested against baseline; subset of {'al
 
 NORM_LABELS = {'baseline': 'baseline T(f)', 'alpha': 'alpha(f) = -ln(T)/d'}
 APPLY_SCALING = True
-APPLY_SG = False  # AFTER windowing
+APPLY_SG = False      # AFTER windowing
 SG_W = 3
 SG_P = 2
 APPLY_PRE_SG = False  # BEFORE windowing
-PRE_SG_W = 11
-PRE_SG_P = 3
+PRE_SG_W = 7
+PRE_SG_P = 2
 APPLY_PCA = False
-APPLY_LDA = False
-APPLY_QDA = False
-APPLY_ICA = False
+APPLY_LDA = False   
+APPLY_QDA = True
+APPLY_ICA = False  #CHECK
 
 TRAIN_DIR = 'data/experiment_5_plastics/processed/'
 
@@ -687,7 +687,9 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
             _sc = StandardScaler()
             _Xtr = _sc.fit_transform(_Xtr)
             _Xte = _sc.transform(_Xte)
-        if flags["sg"]:
+        if flags["sg"] and _Xtr.shape[1] >= flags["sg_w"]:
+            # Guard: K=1 yields 2 feats < window 3 -> savgol would raise;
+            # passthrough raw (smoothing undefined on <window points).
             _Xtr = savgol_filter(_Xtr, window_length=flags["sg_w"], polyorder=flags["sg_p"])
             _Xte = savgol_filter(_Xte, window_length=flags["sg_w"], polyorder=flags["sg_p"])
         if flags["pca"]:
