@@ -83,8 +83,8 @@ PRE_SG_W = 7
 PRE_SG_P = 2
 APPLY_PCA = False
 APPLY_LDA = False   
-APPLY_QDA = True
-APPLY_ICA = False  #CHECK
+APPLY_QDA = False
+APPLY_ICA = False
 
 TRAIN_DIR = 'data/experiment_5_plastics/processed/'
 
@@ -702,14 +702,30 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
             _Xtr = _ld.fit_transform(_Xtr, _ytr)
             _Xte = _ld.transform(_Xte)
         if flags["qda"]:
-            _qd = QuadraticDiscriminantAnalysis()
+            # reg_param>0 floors SVD eigenvalues: alpha dead bands are exact-constant
+            # cols -> exact-zero S2 -> S^-0.5=inf, 0*inf=NaN posteriors (crashed NB
+            # at K<=10). Floor is exactly reg_param at any feature scale.
+            _qd = QuadraticDiscriminantAnalysis(reg_param=0.01)
             _qd.fit(_Xtr, _ytr)
             _Xtr = np.hstack((_Xtr, _qd.predict_proba(_Xtr)))
             _Xte = np.hstack((_Xte, _qd.predict_proba(_Xte)))
         if flags["ica"]:
-            _ic = FastICA(n_components=2, random_state=seed)
-            _Xtr = _ic.fit_transform(_Xtr)
-            _Xte = _ic.transform(_Xte)
+            # Alpha dead bands are exact-constant cols -> zero singular values ->
+            # inf/NaN in FastICA's default svd whitening (crashed the alpha arm).
+            # Drop them (mask from TRAIN only) and scale components with K:
+            # min(live feats, train classes - 1), so the K sweep stays meaningful
+            # instead of collapsing every K to 2 dims.
+            _Atr = np.asarray(_Xtr, dtype=float)
+            _Ate = np.asarray(_Xte, dtype=float)
+            _live = _Atr.std(axis=0) > 0
+            _Atr, _Ate = _Atr[:, _live], _Ate[:, _live]
+            _n_ic = min(_Atr.shape[1], len(np.unique(_ytr)) - 1)
+            if _n_ic >= 1:
+                _ic = FastICA(n_components=_n_ic, random_state=seed)
+                _Xtr = _ic.fit_transform(_Atr)
+                _Xte = _ic.transform(_Ate)
+            else:
+                _Xtr, _Xte = _Atr, _Ate
         _n_feat = _Xtr.shape[1]
         if int(_K) == 50 and _raw_path and _sel_models is not None:
             _fitted = list(_sel_models)
