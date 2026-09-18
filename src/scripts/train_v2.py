@@ -71,7 +71,7 @@ ALPHA_LG_FLOOR_MV = 3.0
 WINDOW_S = 0.1
 
 LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'L', 'O']
-TEST_NORMS = ['alpha']  # normalizations tested against baseline; subset of {'alpha'}
+TEST_NORMS = ['alpha']  
 
 NORM_LABELS = {'baseline': 'baseline T(f)', 'alpha': 'alpha(f) = -ln(T)/d'}
 APPLY_SCALING = True
