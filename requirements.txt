@@ -1,21 +1,17 @@
-pandas>=1.5.0
-scikit-learn>=1.0.0
-numpy>=1.20.0
-matplotlib>=3.5.0
-seaborn>=0.12.0
+# Core training/eval 
+numpy>=2.1.2
+pandas>=2.2.3
+scikit-learn>=1.6.1
+matplotlib>=3.10.0
+scipy>=1.15.0
+joblib>=1.5.0
+pyarrow>=20.0.0  
+
+# Notebooks + exploratory scripts
 jupyter>=1.0.0
-argparse>=1.4.0
-torch>=1.10.0
-joblib>=1.1.0
-graphviz>=0.19
-scipy>=1.7.0
-tensorflow>=2.8.0
-keras>=2.8.0
-pydot>=1.4.2
-wandb>=0.12.0
+ipykernel>=6.29.5
+seaborn>=0.13.0
+# plotter.py only (interactive hover). Caution: mplcursors>=0.7 forces
+# matplotlib!=3.10.3, i.e. past the paper env (3.10.3) — install it in a
+# separate env if figure reproducibility matters.
 mplcursors>=0.5.1
-ipywidgets>=7.6.0
-plotly>=5.0.0
-kaleido>=0.2.1
-openpyxl>=3.0.9
-xlsxwriter>=3.0.3
