@@ -35,18 +35,11 @@ OUTDIR = os.path.join(REPO, 'results', 'exp_5_v2')
 OUT_PREFIX = 'lodo_'  # output filename prefix
 WORKERS = os.cpu_count() or 4  # parallel (fold, norm) processes
 SMOKE = False  # True -> fold 0 only, K=[10, 3]
+MODE = "perfold"  # "perfold" or "nested-shared"
 SEED = 42  # fixed seed for reproducibility (random_state, np.random, random.seed)
 
 K_LIST = [50, 20, 10, 5, 3, 1]
 
-SELECTED = {
-    1:  [360],
-    3:  [360, 400, 460],
-    5:  [320, 330, 360, 400, 460],
-    10: [230, 310, 320, 330, 350, 360, 370, 400, 420, 460],
-    20: [200, 230, 290, 310, 320, 330, 340, 350, 360, 370, 380, 390, 400, 410, 420, 430, 450, 460, 500, 510],
-    50: list(range(100, 591, 10)),
-}
 FREQS_ALL = list(range(100, 591, 10))
 
 MODELS_ORDER = ['RF', 'NB', 'LR', 'GB', 'SVM']
@@ -564,32 +557,41 @@ def frequency_scores_from_importances(imp_by_model, feature_columns, freqs_all=F
     return tab
 
 def select_topK_for_fold(Xtr_df, ytr, seed, K_list=K_LIST, freqs_all=FREQS_ALL):
-    """Per-fold selection on TRAIN fold only (all 50 freqs) -> ({K: top-K}, ranking, models).
+    """V20 ET-free systematic selection on TRAIN fold only -> ({K: top-K}, ranking, None).
 
-    All voters see the same train-fit standardized frame (v4 hygiene: v2 fit
-    SVM/NB on raw mV spanning ~4 orders, making their votes noise). LR is scored
-    with mean |coef| over classes (the helper's coef_[0] legacy output is unused).
-    get_feature_importances(plot=False); Xtr_df must be a DataFrame.
+    Single bootstrapped-forest voice: mean rank over 10 resample fits of a
+    RandomForest (sqrt features) on the train-fit standardized frame
+    (Xtr_df must be a DataFrame). Each frequency votes with its HG-channel
+    columns only. No ExtraTrees, no NB/SVM/LR/GB votes, no permutation
+    scoring, no test data. Provenance: search ledger V20-boot10-sqrt.
+    Returns None for models (unused: scaling is ON so run_unit always refits).
     """
-    _sc_sel = StandardScaler()
-    _Xtr_sel = pd.DataFrame(_sc_sel.fit_transform(Xtr_df),
-                            columns=[str(c) for c in Xtr_df.columns], index=Xtr_df.index)
-    rf_m, nb_m, lr_m, gb_m, svm_m, _ = train_models(_Xtr_sel, ytr, seed)
-    # NOTE: the shared helper scores LR with coef_[0] (first class only in multinomial).
-    # Universal selection uses mean |coef| over classes (strictly more complete); the
-    # helper is still called for the RF/GB/NB/SVM importances.
-    rf_imp, _lr_imp_legacy, gb_imp, nb_imp, svm_imp = get_feature_importances(
-        rf_m, lr_m, gb_m, nb_m, svm_m, _Xtr_sel, ytr, seed, False, 10)
-    lr_full = pd.DataFrame({'Feature': [str(c) for c in Xtr_df.columns],
-                            'Importance': np.asarray(np.abs(_lr_coef(lr_m)).mean(axis=0), dtype=float)})
-    imp = {}
-    for name, dfi in [('RF', rf_imp), ('LR', lr_full), ('GB', gb_imp), ('NB', nb_imp), ('SVM', svm_imp)]:
-        imp[name] = pd.Series(np.asarray(dfi['Importance'], dtype=float),
-                              index=[str(c) for c in dfi['Feature']])
-    feat_cols = [str(c) for c in Xtr_df.columns]
-    ranking = frequency_scores_from_importances(imp, feat_cols, freqs_all)
+    _sc = StandardScaler()
+    _Xs = pd.DataFrame(_sc.fit_transform(Xtr_df),
+                       columns=[str(c) for c in Xtr_df.columns], index=Xtr_df.index)
+    _cols = [str(c) for c in _Xs.columns]
+    _yarr = np.asarray(ytr)
+    _ranks = []
+    for _b in range(10):
+        _idx = np.random.RandomState(seed * 1000 + _b).choice(
+            len(_yarr), size=len(_yarr), replace=True)
+        _m = RandomForestClassifier(n_estimators=500, min_samples_leaf=2,
+                                    max_features="sqrt", n_jobs=-1,
+                                    random_state=seed + _b)
+        _m.fit(_Xs.iloc[_idx], _yarr[_idx])
+        _ranks.append(pd.Series(np.asarray(_m.feature_importances_, dtype=float),
+                                index=_cols).rank(ascending=False, method="average"))
+    _cons = pd.concat(_ranks, axis=1).mean(axis=1)
+    _rows = []
+    for _f in freqs_all:
+        _have = [c for c in (f'{_f}.0 HG (mV) mean',
+                             f'{_f}.0 HG (mV) std deviation') if c in _cols]
+        _rows.append({'Frequency': _f,
+                      'score': float(_cons[_have].mean()) if _have else float('nan')})
+    ranking = pd.DataFrame(_rows).sort_values('score', ascending=True).reset_index(drop=True)
+    ranking['rank'] = ranking.index + 1
     topK = {int(K): ranking['Frequency'].head(int(K)).tolist() for K in K_list}
-    return topK, ranking, (rf_m, nb_m, lr_m, gb_m, svm_m)
+    return topK, ranking, None
 
 def nested_emergent_sets(df_outer_tr, seed, K_list, labels, freqs_all):
     """Inner LOO over the 4 outer-train days -> ({K: emergent bands}, audit).
@@ -1156,27 +1158,22 @@ def main():
     splits = list(GroupKFold(n_splits=5).split(
         df_pivot_full, groups=df_pivot_full["Day"].values))
     folds_wanted = [0] if smoke else [0, 1, 2, 3, 4]
-    # SELECTED-only: fixed bands (same dict aliased to both norm keys).
-    SEL = {int(K): [int(f) for f in SELECTED[int(K)]] for K in K_list if int(K) in SELECTED}
-    topk_by_fold, held_by_fold = {}, {}
+    held_by_fold = {}
     for fold in folds_wanted:
         _tri, _tei = splits[fold]
         _held = sorted(df_pivot_full.iloc[_tei]["Day"].unique())
         assert len(_held) == 1, f"fold {fold} mixes days: {_held}"
         held_by_fold[fold] = int(_held[0])
-        _sel = {int(K): list(v) for K, v in SEL.items()}
-        topk_by_fold[(fold, "SEL")] = _sel
-        topk_by_fold[(fold, "SEL_alpha")] = _sel
-    # ---- outer evaluation (SELECTED x baseline + alpha, 5 models via run_unit)
+    # ---- outer evaluation (per-fold train-only selection x baseline + alpha, 5 models via run_unit)
     tasks = []
     for fold in folds_wanted:
         tri, tei = splits[fold]
         df_tr = df_pivot_full.iloc[tri].reset_index(drop=True)
         df_te = df_pivot_full.iloc[tei].reset_index(drop=True)
         tasks.append((fold, held_by_fold[fold], "baseline", df_tr, df_te,
-                      topk_by_fold[(fold, "SEL")], sorted(SEL.keys()), "SEL"))
+                      None, list(K_list), "perfold"))
         tasks.append((fold, held_by_fold[fold], "alpha", df_tr, df_te,
-                      topk_by_fold[(fold, "SEL_alpha")], sorted(SEL.keys()), "SEL_alpha"))
+                      None, list(K_list), "perfold"))
     workers = max(1, min(workers, len(tasks)))
     print(f"tasks={len(tasks)} workers={workers}", flush=True)
     outs = Parallel(n_jobs=workers, backend="loky")(
@@ -1185,8 +1182,11 @@ def main():
                           fixed_topK=fx, option=opt)
         for fold, held, norm, tr, te, fx, kl, opt in tasks)
     records, band_refs, band_refs_lg = [], {}, {}
+    topK_by_fold, rankings_by_fold = {}, {}
     for (_fold, _held, _norm, _tr, _te, _fx, _kl, _opt), o in zip(tasks, outs):
         records.extend(o["records"])
+        topK_by_fold[(_fold, _norm)] = o["topK"]
+        rankings_by_fold[(_fold, _norm)] = o["ranking"]
         if _norm == "alpha":
             band_refs[(_fold, "alpha")] = o["ref"]
             band_refs_lg[(_fold, "alpha")] = o["ref_lg"]
@@ -1205,11 +1205,8 @@ def main():
     sp = os.path.join(outdir, f"{OUT_PREFIX}{tag}summary.csv")
     summary.to_csv(sp, index=False, sep=";")
     print(summary.to_string(index=False), flush=True)
-    _tk = {}
-    for _f in folds_wanted:
-        _tk[(_f, "baseline")] = topk_by_fold[(_f, "SEL")]
-        _tk[(_f, "alpha")] = topk_by_fold[(_f, "SEL_alpha")]
-    _rk = {(_f, _n): None for _f in folds_wanted for _n in ("baseline", "alpha")}
+    _tk = topK_by_fold
+    _rk = rankings_by_fold
     _stab, _univ = aggregate_stability(cv_results, _tk, _rk, list(FREQS_ALL),
                                        ["baseline", "alpha"], outdir, tag)
     save_result_plots(cv_results, _stab, list(FREQS_ALL), outdir, tag, OUT_PREFIX,
@@ -1229,10 +1226,138 @@ def main():
                          "pandas": pd.__version__,
                          "sklearn": __import__("sklearn").__version__,
                          "scipy": __import__("scipy").__version__}}
-    meta["options"] = ["SEL", "SEL_alpha"]
-    meta["SELECTED"] = {str(k): [int(f) for f in v] for k, v in SEL.items()}
+    meta["options"] = ["perfold"]
+    meta["selection"] = ("unified systematic FI V20: bootstrap-10 RF-sqrt consensus, "
+                         "HG-only, train-only")
     mp = os.path.join(outdir, f"{OUT_PREFIX}{tag}run_meta.json")
     json.dump(meta, open(mp, "w", encoding="utf-8"), indent=2, sort_keys=True)
 
+SHARED_PREFIX = "nested_shared_"
+
+
+def _derive_baseline_emergent(fold, df_outer_tr, seed, K_list):
+    """One outer fold's shared bands: nested inner-LOO on BASELINE outer-train only."""
+    _out, _audit = nested_emergent_sets(df_outer_tr, seed, list(K_list),
+                                        list(LABELS), list(FREQS_ALL))
+    return (int(fold),
+            {int(k): [int(f) for f in v] for k, v in _out.items()},
+            {int(k): v for k, v in _audit.items()})
+
+
+def main_nested_shared():
+    """Shared-set mode: baseline-derived emergent bands evaluated identically
+    on both arms (same selected_freqs per fold/K; alpha uses outer-train refs)."""
+    outdir, workers, smoke, seed = OUTDIR, WORKERS, SMOKE, SEED
+    os.makedirs(outdir, exist_ok=True)
+    K_list = list(K_LIST) if not smoke else [10, 3]
+    flags = {"scaling": bool(APPLY_SCALING), "sg": bool(APPLY_SG),
+             "sg_w": int(SG_W), "sg_p": int(SG_P),
+             "pre_sg": bool(APPLY_PRE_SG), "pre_sg_w": int(PRE_SG_W), "pre_sg_p": int(PRE_SG_P),
+             "pca": bool(APPLY_PCA), "lda": bool(APPLY_LDA),
+             "qda": bool(APPLY_QDA), "ica": bool(APPLY_ICA)}
+    print(f"nested-shared seed={seed} workers={workers} smoke={smoke} outdir={outdir}",
+          flush=True)
+    set_seed(seed)
+    t_all = time.time()
+    nb_dir = os.path.join(REPO, "src", "nb")
+    df_pivot_full = build_pivot(nb_dir, float(WINDOW_S), outdir,
+                                bool(APPLY_PRE_SG), int(PRE_SG_W), int(PRE_SG_P))
+    print(f"pivot: {df_pivot_full.shape}, "
+          f"days={sorted(df_pivot_full['Day'].unique())}", flush=True)
+    assert set(df_pivot_full["Day"].unique()) == {1, 2, 3, 4, 5}
+    splits = list(GroupKFold(n_splits=5).split(
+        df_pivot_full, groups=df_pivot_full["Day"].values))
+    folds_wanted = [0] if smoke else [0, 1, 2, 3, 4]
+    outer = {}
+    for fold in folds_wanted:
+        tri, tei = splits[fold]
+        dtr = df_pivot_full.iloc[tri].reset_index(drop=True)
+        dte = df_pivot_full.iloc[tei].reset_index(drop=True)
+        h = sorted(dte["Day"].unique().tolist())
+        assert len(h) == 1, f"fold {fold} mixes days: {h}"
+        assert int(h[0]) not in sorted(dtr["Day"].unique().tolist())
+        outer[fold] = (int(h[0]), dtr, dte)
+    # Phase 1: baseline-only nested derive (outer-train days only).
+    dw = max(1, min(workers, len(folds_wanted)))
+    t_derive = time.time()
+    derived = Parallel(n_jobs=dw, backend="loky")(
+        delayed(_derive_baseline_emergent)(f, outer[f][1], seed, list(K_list))
+        for f in folds_wanted)
+    derive_s = float(time.time() - t_derive)
+    emerg = {f: e for f, e, _ in derived}
+    audits = {f: a for f, _, a in derived}
+    for f in folds_wanted:
+        for K in K_list:
+            assert len(emerg[f][int(K)]) == int(K)
+    # Phase 2: outer evaluation with the SAME sets on both arms.
+    tasks = []
+    for f in folds_wanted:
+        held, dtr, dte = outer[f]
+        tasks.append((f, held, "baseline", dtr, dte, emerg[f]))
+        tasks.append((f, held, "alpha", dtr, dte, emerg[f]))
+    ew = max(1, min(workers, len(tasks)))
+    print(f"eval_tasks={len(tasks)} workers={ew}", flush=True)
+    outs = Parallel(n_jobs=ew, backend="loky")(
+        delayed(run_unit)(f, h, n, tr, te, seed, list(K_list),
+                          list(LABELS), list(FREQS_ALL), flags,
+                          fixed_topK=fx, option="shared-base")
+        for f, h, n, tr, te, fx in tasks)
+    records = []
+    for (_f, _h, _n, _tr, _te, _fx), o in zip(tasks, outs):
+        assert o["sel_time_s"] == 0.0
+        records.extend(o["records"])
+    records.sort(key=lambda r: (r["norm_mode"], r["K"], MODELS_ORDER.index(r["model"]), r["fold"]))
+    cv_results = pd.DataFrame(records)
+    # Sharedness: both arms must carry identical band sets per (fold, K).
+    _chk = cv_results.groupby(["fold", "K"])["selected_freqs"].nunique()
+    assert int((_chk == 1).sum()) == len(_chk), "arms diverged in bands!"
+    cv_results.to_csv(os.path.join(outdir, f"{SHARED_PREFIX}per_fold.csv"),
+                      index=False, sep=";")
+    summary = (cv_results.groupby(["norm_mode", "K", "model"])
+               .agg(mean_acc=("acc", "mean"), std_acc=("acc", "std"),
+                    mean_f1=("f1", "mean"), std_f1=("f1", "std"),
+                    mean_EG=("acc_EG", "mean"), mean_HJ=("acc_HJ", "mean"),
+                    n_folds=("fold", "nunique"))
+               .reset_index().round(4)
+               .sort_values(["norm_mode", "K", "model"]).reset_index(drop=True))
+    summary.to_csv(os.path.join(outdir, f"{SHARED_PREFIX}summary.csv"), index=False, sep=";")
+    print(summary.to_string(index=False), flush=True)
+    sets_doc = {"mode": "nested-shared",
+                "rule": ("per outer fold: nested inner-LOO over the 4 outer-train days on "
+                         "BASELINE frames only (V20 voices); the identical emergent sets are "
+                         "evaluated on both arms; alpha refs from outer-train rows only"),
+                "folds": {str(f): {"held_out_day": outer[f][0],
+                                   "emergent": {str(k): v for k, v in emerg[f].items()},
+                                   "audit": {str(k): v for k, v in audits[f].items()}}
+                          for f in folds_wanted}}
+    json.dump(sets_doc, open(os.path.join(outdir, f"{SHARED_PREFIX}sets.json"),
+                             "w", encoding="utf-8"), indent=2, sort_keys=True)
+    t_all = time.time() - t_all
+    tt = cv_results.groupby("model")["train_time_s"].mean().round(3).to_dict()
+    meta = {"mode": "nested-shared", "seed": seed, "workers": workers, "smoke": smoke,
+            "K": [int(k) for k in K_list], "norms": ["baseline", "alpha"],
+            "labels": [str(x) for x in LABELS], "window_s": float(WINDOW_S),
+            "flags": flags, "rows": int(cv_results.shape[0]),
+            "option": "shared-base",
+            "selection": ("shared baseline-derived emergent sets (V20 voices, nested inner-LOO "
+                          "on baseline outer-train only), evaluated identically on both arms"),
+            "mean_train_time_s_per_model": {str(k): float(v) for k, v in tt.items()},
+            "derive_time_s_total": derive_s,
+            "wall_time_s_total": float(t_all),
+            "versions": {"python": platform.python_version(), "numpy": np.__version__,
+                         "pandas": pd.__version__,
+                         "sklearn": __import__("sklearn").__version__,
+                         "scipy": __import__("scipy").__version__}}
+    json.dump(meta, open(os.path.join(outdir, f"{SHARED_PREFIX}run_meta.json"),
+                         "w", encoding="utf-8"), indent=2, sort_keys=True)
+    print(f"rows={len(cv_results)} NaNs={int(cv_results.isna().sum().sum())} "
+          f"wall_s={t_all:.1f} derive_s={derive_s:.1f}", flush=True)
+
+
 if __name__ == "__main__":
-    main()
+    if MODE == "nested-shared":
+        main_nested_shared()
+    elif MODE == "perfold":
+        main()
+    else:
+        raise ValueError(f"unknown MODE: {MODE}")
