@@ -557,15 +557,7 @@ def frequency_scores_from_importances(imp_by_model, feature_columns, freqs_all=F
     return tab
 
 def select_topK_for_fold(Xtr_df, ytr, seed, K_list=K_LIST, freqs_all=FREQS_ALL):
-    """V20 ET-free systematic selection on TRAIN fold only -> ({K: top-K}, ranking, None).
-
-    Single bootstrapped-forest voice: mean rank over 10 resample fits of a
-    RandomForest (sqrt features) on the train-fit standardized frame
-    (Xtr_df must be a DataFrame). Each frequency votes with its HG-channel
-    columns only. No ExtraTrees, no NB/SVM/LR/GB votes, no permutation
-    scoring, no test data. Provenance: search ledger V20-boot10-sqrt.
-    Returns None for models (unused: scaling is ON so run_unit always refits).
-    """
+    """ Systematic selection on TRAIN fold only V20 """
     _sc = StandardScaler()
     _Xs = pd.DataFrame(_sc.fit_transform(Xtr_df),
                        columns=[str(c) for c in Xtr_df.columns], index=Xtr_df.index)
