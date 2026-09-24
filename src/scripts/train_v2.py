@@ -111,11 +111,15 @@ def _mode_first(s):
     return m.iloc[0] if len(m) else s.iloc[0]
 
 def grouped_window_averages(df, data_percentage):
+    # ponytail: per-file windows; global groupby would let one window straddle two Days
     results = []
-    for (sample, freq), group in df.groupby(['Sample', 'Frequency (GHz)']):
+    for (sample, freq, src), group in df.groupby(['Sample', 'Frequency (GHz)', 'SourceFile'], sort=False):
+        day = group['Day'].iloc[0]
+        assert bool((group['Day'] == day).all()), f"mixed Days in {(sample, freq, src)}"
         window_size = max(1, int(len(group) * data_percentage / 100))
         for start in range(0, len(group), window_size):
             window_data = group.iloc[start:start + window_size]
+            assert bool((window_data['Day'] == day).all() and (window_data['SourceFile'] == src).all())
             mean_values = window_data[['LG (mV)', 'HG (mV)']].mean()
             std_deviation_values = window_data[['LG (mV)', 'HG (mV)']].std()
             results.append({
@@ -125,24 +129,24 @@ def grouped_window_averages(df, data_percentage):
                 'LG (mV) std deviation': std_deviation_values['LG (mV)'],
                 'HG (mV) std deviation': std_deviation_values['HG (mV)'],
                 'Sample': sample,
-                'Day': _mode_first(window_data['Day']),
-                'SourceFile': _mode_first(window_data['SourceFile']),
+                'Day': day,
+                'SourceFile': src,
             })
     return pd.DataFrame(results)
 
 def grouped_pivot(df, data_percentage):
     """Same pivot as freq_as_variable + Day/SourceFile carried per (Sample, unique_id) row."""
     df_window = grouped_window_averages(df, data_percentage)
-    df_window['unique_id'] = df_window.groupby(['Sample', 'Frequency (GHz)']).cumcount()
-    feat = df_window.drop(columns=['Day', 'SourceFile'])
-    df_pivot = feat.pivot(index=['Sample', 'unique_id'], columns='Frequency (GHz)')
+    df_window['unique_id'] = df_window.groupby(['Sample', 'Frequency (GHz)', 'SourceFile'], sort=False).cumcount()
+    feat = df_window.drop(columns=['Day'])
+    df_pivot = feat.pivot(index=['Sample', 'SourceFile', 'unique_id'], columns='Frequency (GHz)')
     df_pivot.columns = [' '.join([str(col[1]), str(col[0])]) for col in df_pivot.columns]
     df_pivot = df_pivot.dropna(axis=1, how='all')
     df_pivot = df_pivot.reset_index()
-    meta = (df_window.groupby(['Sample', 'unique_id'])
-            .agg(Day=('Day', _mode_first), SourceFile=('SourceFile', _mode_first))
+    meta = (df_window.groupby(['Sample', 'SourceFile', 'unique_id'])
+            .agg(Day=('Day', _mode_first))
             .reset_index())
-    df_pivot = df_pivot.merge(meta, on=['Sample', 'unique_id'], how='left')
+    df_pivot = df_pivot.merge(meta, on=['Sample', 'SourceFile', 'unique_id'], how='left')
     df_pivot = df_pivot.drop(columns=['unique_id'])
     feat_cols = sorted([c for c in df_pivot.columns if c not in ('Sample', 'Day', 'SourceFile')])
     return df_pivot[['Sample', 'Day', 'SourceFile'] + feat_cols]
@@ -813,7 +817,8 @@ def build_pivot(notebook_nb_dir, window_s, outdir, pre_sg=False, pre_sg_w=5, pre
             _arrow_v = None
         return {"window_s": window_s, "dp": _dp, "inputs": h.hexdigest(),
                 "pandas": pd.__version__, "pyarrow": _arrow_v,
-                "pre_sg": bool(pre_sg), "pre_sg_w": int(pre_sg_w), "pre_sg_p": int(pre_sg_p)}
+                "pre_sg": bool(pre_sg), "pre_sg_w": int(pre_sg_w), "pre_sg_p": int(pre_sg_p),
+                "grouping": "sample-freq-file-v2"}
 
     _sig = _pivot_input_sig()
     df_pivot_full = None
