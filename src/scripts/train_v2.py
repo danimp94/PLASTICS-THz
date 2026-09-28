@@ -26,7 +26,6 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
-from sklearn.inspection import permutation_importance
 from scipy.signal import savgol_filter
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
@@ -282,7 +281,8 @@ def train_models(X_train, y_train, seed):
 
     return rf_model, nb_model, lr_model, gb_model, svm_model, training_times
 
-def get_feature_importances(rf_model, lr_model, gb_model, nb_model, svm_model, X_train, y_train, seed, plot=True, n=10):
+def _unused_get_feature_importances(rf_model, lr_model, gb_model, nb_model, svm_model, X_train, y_train, seed, plot=True, n=10):
+    raise RuntimeError("unused helper (permutation importance removed); selection uses feature_rank")
     feature_names = X_train.columns
 
     # Random Forest feature importances
@@ -301,12 +301,12 @@ def get_feature_importances(rf_model, lr_model, gb_model, nb_model, svm_model, X
     gb_feature_importances_df = gb_feature_importances_df.sort_values('Importance', ascending=False)
 
     # Naive Bayes permutation importance (n_jobs: deterministic with fixed random_state)
-    result_nb = permutation_importance(nb_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=1)
+    result_nb = _REMOVED_permutation_importance(nb_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=1)
     sorted_idx_nb = result_nb.importances_mean.argsort()[::-1]
     nb_feature_importances_df = pd.DataFrame({'Feature': feature_names[sorted_idx_nb], 'Importance': result_nb.importances_mean[sorted_idx_nb]})
 
     # SVM permutation importance
-    result_svm = permutation_importance(svm_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=1)
+    result_svm = _REMOVED_permutation_importance(svm_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=1)
     sorted_idx_svm = result_svm.importances_mean.argsort()[::-1]
     svm_feature_importances_df = pd.DataFrame({'Feature': feature_names[sorted_idx_svm], 'Importance': result_svm.importances_mean[sorted_idx_svm]})
 
@@ -532,58 +532,92 @@ def apply_alpha_pivoted(df_pivot, ref_hg, ref_lg, freqs_all=FREQS_ALL, thickness
     # NOTE: std-deviation cols intentionally untouched (raw in both arms).
     return out
 
-def frequency_scores_from_importances(imp_by_model, feature_columns, freqs_all=FREQS_ALL):
-    """Feature importances -> frequency scores.
+def feature_rank(Xtr_df, ytr, seed):
+    """Native-only feature ranks (1 = best): RF consensus + GB + LR mean|coef|.
 
-    Each frequency votes with its HG-channel columns only (HG mean + HG std):
-    HG is the primary spectroscopy channel (dead HG bands carry no signal, so
-    they sink instead of being promoted by LG-magnitude votes), while LG/std
-    columns still ride along untouched in training. Per model: z-score its
-    importances (scales differ across models), mean over the freq's HG cols;
-    then average across the 5 models. Returns a ranking table (best first).
+    RF: bootstrap-10 consensus
+    GB: single-fit 
+    LR: mean |coef_| across classes
+    
+    No permutation importance: NB/SVM have no native importance
+    Ranks are averaged (mean rank)
     """
-    z = {}
-    for m, s in imp_by_model.items():
-        # Label-aligned: imp Series arrive sorted by importance, so reindex
-        s = pd.Series(s, dtype=float).reindex(list(feature_columns)).astype(float)
-        sd = float(s.std(ddof=0))
-        z[m] = (s - float(s.mean())) / (sd if sd > 0 else 1.0)
-    rows = []
-    for f in freqs_all:
-        cols = [f'{f}.0 HG (mV) mean',
-                f'{f}.0 HG (mV) std deviation']
-        have = [c for c in cols if c in z['RF'].index]
-        rows.append({'Frequency': f,
-                     'score': float(np.mean([float(z[m][have].mean()) for m in z])) if have else float('nan'),
-                     'n_cols': len(have)})
-    tab = pd.DataFrame(rows).sort_values('score', ascending=False).reset_index(drop=True)
-    tab['rank'] = tab.index + 1
-    return tab
+    cols = [str(c) for c in Xtr_df.columns]
+    sc = StandardScaler()
+    Xs = pd.DataFrame(sc.fit_transform(Xtr_df), columns=cols, index=Xtr_df.index)
+    yarr = np.asarray(ytr)
+    rb = []
+    for b in range(10):
+        idx = np.random.RandomState(seed * 1000 + b).choice(len(yarr), size=len(yarr), replace=True)
+        m = RandomForestClassifier(n_estimators=500, min_samples_leaf=2,
+                                   max_features="sqrt", n_jobs=-1,
+                                   random_state=seed + b)
+        m.fit(Xs.iloc[idx], yarr[idx])
+        rb.append(pd.Series(np.asarray(m.feature_importances_, dtype=float),
+                            index=cols).rank(ascending=False, method="average"))
+    r_rf = pd.concat(rb, axis=1).mean(axis=1)
+    gb = GradientBoostingClassifier(random_state=seed)
+    gb.fit(Xs, yarr)
+    r_gb = pd.Series(np.asarray(gb.feature_importances_, dtype=float),
+                     index=cols).rank(ascending=False, method="average")
+    lr = make_pipeline(StandardScaler(),
+                       LogisticRegression(random_state=seed, max_iter=5000))
+    lr.fit(Xtr_df, yarr)
+    r_lr = pd.Series(np.abs(np.asarray(_lr_coef(lr), dtype=float)).mean(axis=0),
+                     index=cols).rank(ascending=False, method="average")
+    return (r_rf + r_gb + r_lr) / 3.0
+
+
+def nested_topK_for_outer(df_outer_tr, seed, K_list, labels, freqs_all, norm):
+    """Nested train-only frequency selection for one outer LODO fold.
+
+    Inner LOO over the outer-train days: each inner fold ranks frequencies
+    with feature_rank on its inner-train rows only (alpha refs recomputed
+    from inner-train rows only). Single nested order by (top-3 votes desc,
+    mean inner rank asc); top-K slices are therefore nested sets. The outer
+    held-out day is never touched here; the caller trains on all outer-train
+    rows with the frozen sets and evaluates once on the held-out day.
+    """
+    days = sorted(df_outer_tr["Day"].unique().tolist())
+    per_inner = []
+    for h in days:
+        d = df_outer_tr[df_outer_tr["Day"] != h].reset_index(drop=True)
+        if norm == "alpha":
+            rh = compute_band_reference(d, freqs_all)
+            rl = compute_band_reference(d, freqs_all, ALPHA_LG_FLOOR_MV, "LG")
+            d = apply_alpha_pivoted(d, rh, rl, freqs_all)
+        X, y = preprocess_data(d, labels, freqs_all, eliminate_std_dev=True)
+        X = add_features(X, y, freqs_all, False, False)
+        r = feature_rank(X, y, seed)
+        rows = [(f, float(r[f'{f}.0 HG (mV) mean'])) if f'{f}.0 HG (mV) mean' in r.index
+                else (f, float("nan")) for f in freqs_all]
+        rk = pd.DataFrame(rows, columns=["Frequency", "score"]).sort_values(
+            "score", ascending=True).reset_index(drop=True)
+        rk["rank"] = rk.index + 1
+        per_inner.append((rk["Frequency"].head(int(max(K_list))).tolist(), rk))
+    cnt, ranks = Counter(), {}
+    for _, rk in per_inner:
+        for f in rk.set_index("Frequency")["rank"].head(3).index:
+            cnt[int(f)] += 1
+        for f, rr in rk.set_index("Frequency")["rank"].items():
+            ranks.setdefault(int(f), []).append(int(rr))
+    order = sorted(freqs_all, key=lambda f: (-cnt.get(int(f), 0),
+                   float(np.mean(ranks[int(f)])) if int(f) in ranks else 1e9))
+    ranking = pd.DataFrame({"Frequency": [int(f) for f in order],
+                            "score": [float(np.mean(ranks[int(f)])) if int(f) in ranks
+                                      else float("nan") for f in order]})
+    ranking["rank"] = ranking.index + 1
+    topK = {int(K): ranking["Frequency"].head(int(K)).tolist() for K in K_list}
+    return topK, ranking, None
 
 def select_topK_for_fold(Xtr_df, ytr, seed, K_list=K_LIST, freqs_all=FREQS_ALL):
-    """ Systematic selection on TRAIN fold only V20 """
-    _sc = StandardScaler()
-    _Xs = pd.DataFrame(_sc.fit_transform(Xtr_df),
-                       columns=[str(c) for c in Xtr_df.columns], index=Xtr_df.index)
-    _cols = [str(c) for c in _Xs.columns]
-    _yarr = np.asarray(ytr)
-    _ranks = []
-    for _b in range(10):
-        _idx = np.random.RandomState(seed * 1000 + _b).choice(
-            len(_yarr), size=len(_yarr), replace=True)
-        _m = RandomForestClassifier(n_estimators=500, min_samples_leaf=2,
-                                    max_features="sqrt", n_jobs=-1,
-                                    random_state=seed + _b)
-        _m.fit(_Xs.iloc[_idx], _yarr[_idx])
-        _ranks.append(pd.Series(np.asarray(_m.feature_importances_, dtype=float),
-                                index=_cols).rank(ascending=False, method="average"))
-    _cons = pd.concat(_ranks, axis=1).mean(axis=1)
+    """ Systematic selection on TRAIN fold only: native RF+GB+LR mean rank. """
+    _r = feature_rank(Xtr_df, ytr, seed)
     _rows = []
     for _f in freqs_all:
-        _have = [c for c in (f'{_f}.0 HG (mV) mean',
-                             f'{_f}.0 HG (mV) std deviation') if c in _cols]
+        _c = f'{_f}.0 HG (mV) mean'
         _rows.append({'Frequency': _f,
-                      'score': float(_cons[_have].mean()) if _have else float('nan')})
+                      'score': float(_r[_c]) if _c in _r.index else float('nan')})
     ranking = pd.DataFrame(_rows).sort_values('score', ascending=True).reset_index(drop=True)
     ranking['rank'] = ranking.index + 1
     topK = {int(K): ranking['Frequency'].head(int(K)).tolist() for K in K_list}
@@ -668,9 +702,11 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
         _topK, _ranking, _sel_models = {int(K): list(v) for K, v in fixed_topK.items()}, None, None
         _sel_time = 0.0
     else:
-        _Xtr50, _ytr50 = preprocess_data(_tr_n, labels, freqs_all, eliminate_std_dev=True)
-        _Xtr50 = add_features(_Xtr50, _ytr50, freqs_all, False, False)
-        _topK, _ranking, _sel_models = select_topK_for_fold(_Xtr50, _ytr50, seed, K_list, freqs_all)
+        # Nested train-only selection: inner LOO over the outer-train days
+        # (df_tr raw; alpha refs recomputed inside from inner-train rows).
+        # df_te is never touched here.
+        _topK, _ranking, _sel_models = nested_topK_for_outer(
+            df_tr, seed, K_list, labels, freqs_all, norm)
         _sel_time = time.time() - _t0
     _raw_path = not (flags["scaling"] or flags["sg"] or flags["pca"]
                      or flags["lda"] or flags["qda"] or flags["ica"])
@@ -1224,8 +1260,9 @@ def main():
                          "sklearn": __import__("sklearn").__version__,
                          "scipy": __import__("scipy").__version__}}
     meta["options"] = ["perfold"]
-    meta["selection"] = ("unified systematic FI V20: bootstrap-10 RF-sqrt consensus, "
-                         "HG-only, train-only")
+    meta["selection"] = ("nested train-only RF+GB+LR native mean-rank consensus "
+                         "(bootstrap-10 RF + GB FI + LR mean|coef|), HG-only, "
+                         "inner-LOO over outer-train days, single nested order, top-K slices")
     mp = os.path.join(outdir, f"{OUT_PREFIX}{tag}run_meta.json")
     json.dump(meta, open(mp, "w", encoding="utf-8"), indent=2, sort_keys=True)
 
