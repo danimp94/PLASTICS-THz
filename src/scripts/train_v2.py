@@ -928,10 +928,50 @@ def aggregate_stability(cv_results, topk_by_fold, rankings_by_fold, freqs_all, p
             universal[(_n, int(_K))] = sorted(_sub["freq"].tolist())
     return stability_df, universal
 
+def save_selection_chart(cv_results, stability_df, outdir, tag, prefix, norms, K=3):
+    """ Chart (top-K) selection stability """
+    for _n in norms:
+        _s3 = stability_df[(stability_df["norm_mode"] == _n) & (stability_df["K"] == int(K))]
+        if _s3.empty:
+            continue
+        _s3 = _s3.sort_values("freq")
+        _fr, _vt = _s3["freq"].to_numpy(), _s3["n_selected"].to_numpy()
+        _pf = cv_results[(cv_results["norm_mode"] == _n) & (cv_results["K"] == int(K))
+                         & (cv_results["model"] == MODELS_ORDER[0])].sort_values("fold")
+        if _pf.empty:
+            continue
+        _sel = {int(r.fold): [int(x) for x in str(r.selected_freqs).split(",")] for _, r in _pf.iterrows()}
+        _held = {int(r.fold): int(r.held_out_day) for _, r in _pf.iterrows()}
+        _voted = sorted({f for v in _sel.values() for f in v})
+        _fig, (_a1, _a2) = plt.subplots(2, 1, figsize=(12, 7), gridspec_kw={"height_ratios": [3, 2]})
+        _bars = _a1.bar(np.arange(len(_fr)), _vt,
+                        color=["#C0392B" if v >= 4 else "#2980B9" if v >= 3 else "#BDC3C7" for v in _vt])
+        _a1.set_xticks(np.arange(len(_fr)), _fr, rotation=90, fontsize=7)
+        _a1.set_ylabel("Outer folds selected (of 5)")
+        _a1.set_ylim(0, 5.6)
+        _a1.set_title(f"Nested RF+GB+LR frequency selection ({_n}, K={int(K)}): outer-fold votes per frequency")
+        for _b, _v in zip(_bars, _vt):
+            if _v > 0:
+                _a1.text(_b.get_x() + _b.get_width() / 2, _v + 0.08, str(_v),
+                         ha="center", va="bottom", fontsize=7)
+        _a1.grid(True, axis="y", alpha=0.3)
+        _mat = np.array([[1 if f in _sel[fl] else 0 for f in _voted] for fl in sorted(_sel)])
+        _a2.imshow(_mat, aspect="auto", cmap=plt.cm.Blues, vmin=0, vmax=1, interpolation="nearest")
+        _a2.set_xticks(np.arange(len(_voted)), _voted, fontsize=9)
+        _a2.set_yticks(np.arange(len(_sel)),
+                       [f"fold{fl} (day {_held[fl]})" for fl in sorted(_sel)], fontsize=9)
+        _a2.set_xlabel("Frequency (GHz)")
+        _a2.set_title(f"Per-fold frozen K={int(K)} sets (each row selected without that row's day)")
+        for _i in range(_mat.shape[0]):
+            for _j in range(_mat.shape[1]):
+                if _mat[_i, _j]:
+                    _a2.text(_j, _i, "X", ha="center", va="center", fontsize=10, fontweight="bold")
+        plt.tight_layout()
+        plt.savefig(os.path.join(outdir, f"{prefix}{tag}selection_K{int(K)}_{_n}.pdf"), bbox_inches="tight", dpi=300)
+        plt.close()
+
 def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix, norms):
-    """Grouped accuracy bars per K + selection-stability bars.
-    norms sets the compared arms, baseline first (bar offsets generalize to N arms).
-    """
+    """Grouped accuracy bars per K + selection-stability bars """ 
     _nrms = list(norms)
     _x = np.arange(len(MODELS_ORDER))
     _w = 0.35
@@ -1197,16 +1237,35 @@ def main():
         _held = sorted(df_pivot_full.iloc[_tei]["Day"].unique())
         assert len(_held) == 1, f"fold {fold} mixes days: {_held}"
         held_by_fold[fold] = int(_held[0])
-    # ---- outer evaluation (per-fold train-only selection x baseline + alpha, 5 models via run_unit)
-    tasks = []
+    # ---- Phase 1: shared nested selection, derived ONCE per outer fold from
+    # the alpha arm's outer-train days only (inner LOO, inner-train refs).
+    # The identical frozen sets evaluate both arms (reviewer: same frequencies).
+    outer = {}
     for fold in folds_wanted:
         tri, tei = splits[fold]
-        df_tr = df_pivot_full.iloc[tri].reset_index(drop=True)
-        df_te = df_pivot_full.iloc[tei].reset_index(drop=True)
+        dtr = df_pivot_full.iloc[tri].reset_index(drop=True)
+        dte = df_pivot_full.iloc[tei].reset_index(drop=True)
+        assert int(held_by_fold[fold]) not in sorted(dtr["Day"].unique().tolist())
+        outer[fold] = (dtr, dte)
+    dw = max(1, min(workers, len(folds_wanted)))
+    derived = Parallel(n_jobs=dw, backend="loky")(
+        delayed(nested_topK_for_outer)(outer[f][0], seed, list(K_list),
+                                       list(LABELS), list(FREQS_ALL), "alpha")
+        for f in folds_wanted)
+    emerg_topK = {f: {int(k): [int(x) for x in v] for k, v in tk.items()}
+                  for f, (tk, _, _) in zip(folds_wanted, derived)}
+    emerg_rank = {f: rk for f, (_, rk, _) in zip(folds_wanted, derived)}
+    for f in folds_wanted:
+        for K in K_list:
+            assert len(emerg_topK[f][int(K)]) == int(K)
+    # ---- Phase 2: outer evaluation with the SAME sets on both arms
+    tasks = []
+    for fold in folds_wanted:
+        df_tr, df_te = outer[fold]
         tasks.append((fold, held_by_fold[fold], "baseline", df_tr, df_te,
-                      None, list(K_list), "perfold"))
+                      emerg_topK[fold], list(K_list), "shared-alpha"))
         tasks.append((fold, held_by_fold[fold], "alpha", df_tr, df_te,
-                      None, list(K_list), "perfold"))
+                      emerg_topK[fold], list(K_list), "shared-alpha"))
     workers = max(1, min(workers, len(tasks)))
     print(f"tasks={len(tasks)} workers={workers}", flush=True)
     outs = Parallel(n_jobs=workers, backend="loky")(
@@ -1219,12 +1278,15 @@ def main():
     for (_fold, _held, _norm, _tr, _te, _fx, _kl, _opt), o in zip(tasks, outs):
         records.extend(o["records"])
         topK_by_fold[(_fold, _norm)] = o["topK"]
-        rankings_by_fold[(_fold, _norm)] = o["ranking"]
+        rankings_by_fold[(_fold, _norm)] = emerg_rank[_fold]
         if _norm == "alpha":
             band_refs[(_fold, "alpha")] = o["ref"]
             band_refs_lg[(_fold, "alpha")] = o["ref_lg"]
     records.sort(key=lambda r: (r["norm_mode"], r["K"], MODELS_ORDER.index(r["model"]), r["fold"]))
     cv_results = pd.DataFrame(records)
+    # Sharedness: both arms must carry identical band sets per (fold, K).
+    _chk = cv_results.groupby(["fold", "K"])["selected_freqs"].nunique()
+    assert int((_chk == 1).sum()) == len(_chk), "arms diverged in bands!"
     pf = os.path.join(outdir, f"{OUT_PREFIX}{tag}per_fold.csv")
     cv_results.to_csv(pf, index=False, sep=";")
     # One result row per frequency group x algorithm x norm.
@@ -1244,6 +1306,9 @@ def main():
                                        ["baseline", "alpha"], outdir, tag)
     save_result_plots(cv_results, _stab, list(FREQS_ALL), outdir, tag, OUT_PREFIX,
                       ["baseline", "alpha"])
+    for _K in K_list:
+        save_selection_chart(cv_results, _stab, outdir, tag, OUT_PREFIX,
+                             ["baseline", "alpha"], K=int(_K))
     save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, list(LABELS),
                         list(FREQS_ALL), outdir, tag, OUT_PREFIX, seed, ["baseline", "alpha"])
     t_all = time.time() - t_all
@@ -1259,10 +1324,11 @@ def main():
                          "pandas": pd.__version__,
                          "sklearn": __import__("sklearn").__version__,
                          "scipy": __import__("scipy").__version__}}
-    meta["options"] = ["perfold"]
-    meta["selection"] = ("nested train-only RF+GB+LR native mean-rank consensus "
-                         "(bootstrap-10 RF + GB FI + LR mean|coef|), HG-only, "
-                         "inner-LOO over outer-train days, single nested order, top-K slices")
+    meta["options"] = ["shared-alpha"]
+    meta["selection"] = ("shared nested train-only RF+GB+LR native mean-rank consensus "
+                         "(bootstrap-10 RF + GB FI + LR mean|coef|), HG-only, derived once "
+                         "per fold from the alpha arm outer-train days (inner-LOO, "
+                         "inner-train refs), identical frozen sets evaluated on both arms")
     mp = os.path.join(outdir, f"{OUT_PREFIX}{tag}run_meta.json")
     json.dump(meta, open(mp, "w", encoding="utf-8"), indent=2, sort_keys=True)
 
