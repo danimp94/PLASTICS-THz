@@ -928,16 +928,16 @@ def aggregate_stability(cv_results, topk_by_fold, rankings_by_fold, freqs_all, p
             universal[(_n, int(_K))] = sorted(_sub["freq"].tolist())
     return stability_df, universal
 
-def save_selection_chart(cv_results, stability_df, outdir, tag, prefix, norms, K=3):
-    """ Chart (top-K) selection stability """
-    for _n in norms:
-        _s3 = stability_df[(stability_df["norm_mode"] == _n) & (stability_df["K"] == int(K))]
+def save_selection_chart(cv_results, stability_df, outdir, tag, prefix, K=3):
+    """ Chart (top-K) selection stability (single chart: sets are shared across arms) """
+    for _n in [None]:
+        _s3 = stability_df[stability_df["K"] == int(K)].sort_values("freq").drop_duplicates("freq")
         if _s3.empty:
             continue
         _s3 = _s3.sort_values("freq")
         _fr, _vt = _s3["freq"].to_numpy(), _s3["n_selected"].to_numpy()
-        _pf = cv_results[(cv_results["norm_mode"] == _n) & (cv_results["K"] == int(K))
-                         & (cv_results["model"] == MODELS_ORDER[0])].sort_values("fold")
+        _pf = cv_results[(cv_results["K"] == int(K))
+                         & (cv_results["model"] == MODELS_ORDER[0])].sort_values("fold").drop_duplicates("fold")
         if _pf.empty:
             continue
         _sel = {int(r.fold): [int(x) for x in str(r.selected_freqs).split(",")] for _, r in _pf.iterrows()}
@@ -949,7 +949,7 @@ def save_selection_chart(cv_results, stability_df, outdir, tag, prefix, norms, K
         _a1.set_xticks(np.arange(len(_fr)), _fr, rotation=90, fontsize=7)
         _a1.set_ylabel("Outer folds selected (of 5)")
         _a1.set_ylim(0, 5.6)
-        _a1.set_title(f"Nested RF+GB+LR frequency selection ({_n}, K={int(K)}): outer-fold votes per frequency")
+        _a1.set_title(f"Nested RF+GB+LR frequency selection (shared sets, K={int(K)}): outer-fold votes per frequency")
         for _b, _v in zip(_bars, _vt):
             if _v > 0:
                 _a1.text(_b.get_x() + _b.get_width() / 2, _v + 0.08, str(_v),
@@ -961,13 +961,13 @@ def save_selection_chart(cv_results, stability_df, outdir, tag, prefix, norms, K
         _a2.set_yticks(np.arange(len(_sel)),
                        [f"fold{fl} (day {_held[fl]})" for fl in sorted(_sel)], fontsize=9)
         _a2.set_xlabel("Frequency (GHz)")
-        _a2.set_title(f"Per-fold frozen K={int(K)} sets (each row selected without that row's day)")
+        _a2.set_title(f"Per-fold frozen K={int(K)} sets, shared across arms (each row selected without that row's day)")
         for _i in range(_mat.shape[0]):
             for _j in range(_mat.shape[1]):
                 if _mat[_i, _j]:
                     _a2.text(_j, _i, "X", ha="center", va="center", fontsize=10, fontweight="bold")
         plt.tight_layout()
-        plt.savefig(os.path.join(outdir, f"{prefix}{tag}selection_K{int(K)}_{_n}.pdf"), bbox_inches="tight", dpi=300)
+        plt.savefig(os.path.join(outdir, f"{prefix}{tag}selection_K{int(K)}.pdf"), bbox_inches="tight", dpi=300)
         plt.close()
 
 def save_result_plots(cv_results, stability_df, freqs_all, outdir, tag, prefix, norms):
@@ -1307,8 +1307,7 @@ def main():
     save_result_plots(cv_results, _stab, list(FREQS_ALL), outdir, tag, OUT_PREFIX,
                       ["baseline", "alpha"])
     for _K in K_list:
-        save_selection_chart(cv_results, _stab, outdir, tag, OUT_PREFIX,
-                             ["baseline", "alpha"], K=int(_K))
+        save_selection_chart(cv_results, _stab, outdir, tag, OUT_PREFIX, K=int(_K))
     save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, list(LABELS),
                         list(FREQS_ALL), outdir, tag, OUT_PREFIX, seed, ["baseline", "alpha"])
     t_all = time.time() - t_all
