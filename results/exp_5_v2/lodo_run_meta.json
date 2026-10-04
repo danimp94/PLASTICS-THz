@@ -1,0 +1,66 @@
+{
+  "K": [
+    50,
+    20,
+    10,
+    5,
+    3,
+    1
+  ],
+  "flags": {
+    "ica": false,
+    "lda": false,
+    "pca": false,
+    "pre_sg": false,
+    "pre_sg_p": 2,
+    "pre_sg_w": 7,
+    "qda": false,
+    "scaling": true,
+    "sg": false,
+    "sg_p": 2,
+    "sg_w": 3
+  },
+  "labels": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "L",
+    "O"
+  ],
+  "mean_train_time_s_per_model": {
+    "GB": 44.818,
+    "LR": 0.504,
+    "NB": 0.008,
+    "RF": 1.531,
+    "SVM": 0.17
+  },
+  "norms": [
+    "baseline",
+    "alpha"
+  ],
+  "options": [
+    "shared-alpha"
+  ],
+  "rows": 300,
+  "seed": 42,
+  "selection": "shared nested train-only RF+GB+LR native mean-rank consensus (bootstrap-10 RF + GB FI + LR mean|coef|), HG-only, derived once per fold from the alpha arm outer-train days (inner-LOO, inner-train refs), identical frozen sets evaluated on both arms",
+  "selection_time_s_total": 0.0,
+  "smoke": false,
+  "versions": {
+    "numpy": "2.1.2",
+    "pandas": "2.2.3",
+    "python": "3.12.10",
+    "scipy": "1.15.3",
+    "sklearn": "1.6.1"
+  },
+  "wall_time_s_total": 979.5586452484131,
+  "window_s": 0.1,
+  "workers": 10
+}
