@@ -35,11 +35,11 @@
     "O"
   ],
   "mean_train_time_s_per_model": {
-    "GB": 44.818,
-    "LR": 0.504,
-    "NB": 0.008,
-    "RF": 1.531,
-    "SVM": 0.17
+    "GB": 208.435,
+    "LR": 0.517,
+    "NB": 0.01,
+    "RF": 24.536,
+    "SVM": 0.219
   },
   "norms": [
     "baseline",
@@ -60,7 +60,7 @@
     "scipy": "1.15.3",
     "sklearn": "1.6.1"
   },
-  "wall_time_s_total": 979.5586452484131,
+  "wall_time_s_total": 2728.437787294388,
   "window_s": 0.1,
   "workers": 10
 }
