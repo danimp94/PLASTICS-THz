@@ -9,10 +9,14 @@ This repository contains scripts and Jupyter notebooks for preprocessing, traini
 ```
 src/
 ├── scripts/
+│   ├── train_v2.py
 │   ├── preprocessing.py
-│   └── plotter.py
+│   ├── plotter.py
+│   ├── correlation_hr_temp.py
+│   └── correlation_thickness.py
 ├── nb/
 │   ├── train.ipynb
+│   ├── train_v2.ipynb
 │   ├── stabilization.ipynb
 │   └── visualization_playground.ipynb
 └── README.md
@@ -21,6 +25,10 @@ src/
 
 ### Installation
 ```sh
+git clone https://github.com/danimp94/PLASTICS-THz.git
+cd PLASTICS-THz
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
@@ -68,6 +76,20 @@ python plotter.py <command> [options]
 - `overlay <data_files> <channel_indices>`: Plot overlay of spectroscopy data.
 - `overlay_avg <data_files> <channel_indices>`: Plot overlay of averaged spectroscopy data.
 - `plot_transmittance <file_path> [samples]`: Plot transmittance from CSV file.
+
+### 3. Training (Experiment 5)
+
+**File:** `train_v2.py`
+
+Leave-one-day-out training over the 5 experiment-5 days: shared nested frequency selection (RF+GB+LR), 5 models (RF, NB, LR, GB, SVM) on baseline and alpha (Beer–Lambert) arms. Writes per-fold/summary/stability CSVs, accuracy/stability/selection charts and pooled confusion matrices to `results/exp_5_v2/`.
+
+#### Usage
+
+```sh
+python src/scripts/train_v2.py
+```
+
+Set `SMOKE = True` in the script for a 1-fold, K=[10,3] wiring check.
 
 ## Jupyter Notebooks
 
@@ -121,6 +143,12 @@ An experimental notebook for developing and testing various visualization techni
 - Data exploration tools
 - Plot customization testing
 
+### 4. LODO Training (Experiment 5)
+
+**File:** `nb/train_v2.ipynb`
+
+Notebook entry point for the same pipeline as `train_v2.py`: it imports the canonical implementation from `src/scripts/train_v2.py` and runs it (`SMOKE = False` for the full run). Run top to bottom; the import cell asserts the right module is loaded. Extra cells below the driver are viz-only exploration (PCA, 3D frequency plots).
+
 ## Example Commands
 
 ### Preprocessing
@@ -161,6 +189,7 @@ jupyter notebook
 
 # Open the desired notebook:
 # - train.ipynb for machine learning pipeline
+# - train_v2.ipynb for the Experiment-5 LODO pipeline
 # - stabilization.ipynb for signal analysis
 # - visualization_playground.ipynb for experimental plots
 ```
@@ -177,14 +206,7 @@ jupyter notebook
 - jupyter
 - joblib
 - scipy
-
-## Installation
-
-Install the required Python packages using pip:
-
-```sh
-pip install pandas numpy matplotlib seaborn scikit-learn mplcursors jupyter joblib scipy
-```
+- pyarrow
 
 ## Output Structure
 
@@ -192,11 +214,11 @@ The notebooks and scripts generate organized output in the following structure:
 
 ```
 results/
-├── pca_models/          # PCA visualization plots
-├── conf_matrix/         # Confusion matrices
-├── feature_importance_detailed/  # Feature importance plots
-├── freq_viz/           # Frequency-specific visualizations
-└── exp_5/              # Experiment results and metrics
+├── exp_5_v2/              # LODO training outputs: lodo_per_fold/summary/stability.csv,
+│                          # accuracy/stability/selection charts, pooled confusion matrices
+├── pca_models/            # PCA visualization plots
+├── conf_matrix/           # Confusion matrices
+└── freq_viz/              # Frequency-specific visualizations (created by train_v2.ipynb)
 ```
 
 ## Contact

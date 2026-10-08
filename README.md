@@ -84,6 +84,21 @@ All tests consist of two measurement steps following the same protocol as Experi
 
 For more details on the setup, samples, and data collected, please refer to the [data/experiment_5_plastics/README.md](data/experiment_5_plastics/README.md) file.
 
+## Training (Experiment 5)
+
+Leave-one-day-out classification pipeline over the 5 experiment-5 days: `src/scripts/train_v2.py`, also runnable via `src/nb/train_v2.ipynb` (both entry points produce identical results). 5 models (RF, NB, LR, GB, SVM) on baseline and alpha (Beer–Lambert) arms with shared nested frequency selection.
+
+```sh
+git clone https://github.com/danimp94/PLASTICS-THz.git
+cd PLASTICS-THz
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python src/scripts/train_v2.py
+```
+
+Results (per-fold/summary/stability CSVs, charts, pooled confusion matrices) land in `results/exp_5_v2/`. Set `SMOKE = True` for a quick 1-fold wiring check. See [src/README.md](src/README.md) for details.
+
 ## Sample Materials
 
 The project tests various plastic and composite materials including:
