@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Training for PLASTICS-THz + Leave-one-day-out + alpha Norm """
 
 import hashlib
@@ -134,7 +133,7 @@ def grouped_window_averages(df, data_percentage):
     return pd.DataFrame(results)
 
 def grouped_pivot(df, data_percentage):
-    """Same pivot as freq_as_variable + Day/SourceFile carried per (Sample, unique_id) row."""
+    """Wide pivot, carrying Day/SourceFile per row."""
     df_window = grouped_window_averages(df, data_percentage)
     df_window['unique_id'] = df_window.groupby(['Sample', 'Frequency (GHz)', 'SourceFile'], sort=False).cumcount()
     feat = df_window.drop(columns=['Day'])
@@ -159,7 +158,6 @@ def preprocess_data(df, labels, freqs, eliminate_std_dev=False, eliminate_LG=Fal
         X_ = X_.drop(columns=['Sample'])
 
     if freqs:
-        # Subset of specific frequencies and features to use as input 
         columns = [f'{freq}.0 HG (mV) mean' for freq in freqs] + \
                   [f'{freq}.0 LG (mV) mean' for freq in freqs] + \
                   [f'{freq}.0 HG (mV)' for freq in freqs] + \
@@ -175,11 +173,9 @@ def preprocess_data(df, labels, freqs, eliminate_std_dev=False, eliminate_LG=Fal
         X_ = X_.reindex(sorted(X_.columns), axis=1)
 
     if eliminate_std_dev:
-        # Eliminate std dev columns from the input features
         X_ = X_.drop(columns=[col for col in X_.columns if 'std deviation' in col])
 
     if eliminate_LG:
-        # Eliminate LG columns from the input features
         X_ = X_.drop(columns=[col for col in X_.columns if 'LG' in col])
 
     return X_, y_
@@ -190,7 +186,6 @@ def add_features(X, y, subset_freqs, HG_diff=True, LG_diff=True):
     mean_std_dict = {}
 
     for freq in subset_freqs:
-        # Calculate HG and LG mean values for each frequency
         agg_dict = {}
         if f'{freq}.0 LG (mV) mean' in X.columns:
             agg_dict['LG_mean'] = (f'{freq}.0 LG (mV) mean', 'mean')
@@ -199,30 +194,21 @@ def add_features(X, y, subset_freqs, HG_diff=True, LG_diff=True):
         mean_std_dict[freq] = X.groupby('Sample').agg(**agg_dict).reset_index()
         mean_std_dict[freq]['Frequency'] = freq
 
-    # Concatenate all DataFrames in the dictionary
     mean_std_df = pd.concat(mean_std_dict.values(), ignore_index=True)
 
-    # For each frequency after first one
     for i, freq in enumerate(subset_freqs[1:]):
-        prev_freq = subset_freqs[i]  # Get previous frequency
+        prev_freq = subset_freqs[i]
 
-        # For each row
         for idx, row in X.iterrows():
             sample = row['Sample']
 
             if HG_diff:
-                # Get previous frequency's HG mean for this sample
                 prev_hg = mean_std_df[
                     (mean_std_df['Frequency'] == prev_freq) &
                     (mean_std_df['Sample'] == sample)
                 ]['HG_mean'].values[0]
 
-                # 1) Inputs: xt - (xt-1) --First-order differences
-                # 2) Inputs: (xt/(xt-1)) - 1 --Relative differences
-
-                # Calculate and store difference
                 X.loc[idx, f'{freq}.0 HG diff'] = X.loc[idx, f'{freq}.0 HG (mV) mean'] - prev_hg
-                # X.loc[idx, f'{freq}.0 HG relative diff'] = (X.loc[idx, f'{freq}.0 HG (mV) mean'] / prev_hg) -1
 
             if LG_diff:
                 prev_lg = mean_std_df[
@@ -230,8 +216,6 @@ def add_features(X, y, subset_freqs, HG_diff=True, LG_diff=True):
                     (mean_std_df['Sample'] == sample)
                 ]['LG_mean'].values[0]
 
-                # Calculate and store difference
-                # X.loc[idx, f'{freq}.0 LG diff'] = X.loc[idx, f'{freq}.0 LG (mV) mean'] - prev_lg
                 X.loc[idx, f'{freq}.0 LG relative diff'] = (X.loc[idx, f'{freq}.0 LG (mV) mean'] / prev_lg) -1
 
     X = X.drop(columns=['Sample'])
@@ -248,32 +232,27 @@ def _lr_coef(lr_model):
 def train_models(X_train, y_train, seed):
     training_times = []
 
-    # RF-A: tuned depth/trees
     start_time = time.time()
     rf_model = RandomForestClassifier(n_estimators=500, min_samples_leaf=2, n_jobs=-1, random_state=seed)
     rf_model.fit(X_train, y_train)
     training_times.append(time.time() - start_time)
 
-    # Naive Bayes
     start_time = time.time()
     nb_model = GaussianNB()
     nb_model.fit(X_train, y_train)
     training_times.append(time.time() - start_time)
 
-    # Logistic Regression
     start_time = time.time()
     lr_model = make_pipeline(StandardScaler(),
                              LogisticRegression(random_state=seed, max_iter=5000))
     lr_model.fit(X_train, y_train)
     training_times.append(time.time() - start_time)
 
-    # Gradient Boosting
     start_time = time.time()
     gb_model = GradientBoostingClassifier(random_state=seed)
     gb_model.fit(X_train, y_train)
     training_times.append(time.time() - start_time)
 
-    # SVM
     start_time = time.time()
     svm_model = SVC(random_state=seed)
     svm_model.fit(X_train, y_train)
@@ -281,200 +260,10 @@ def train_models(X_train, y_train, seed):
 
     return rf_model, nb_model, lr_model, gb_model, svm_model, training_times
 
-def _unused_get_feature_importances(rf_model, lr_model, gb_model, nb_model, svm_model, X_train, y_train, seed, plot=True, n=10):
-    raise RuntimeError("unused helper (permutation importance removed); selection uses feature_rank")
-    feature_names = X_train.columns
-
-    # Random Forest feature importances
-    rf_feature_importances = rf_model.feature_importances_
-    rf_feature_importances_df = pd.DataFrame({'Feature': feature_names, 'Importance': rf_feature_importances})
-    rf_feature_importances_df = rf_feature_importances_df.sort_values('Importance', ascending=False)
-
-    # Logistic Regression feature importances (pipeline-aware: see _lr_coef)
-    lr_feature_importances = _lr_coef(lr_model)[0]
-    lr_feature_importances_df = pd.DataFrame({'Feature': feature_names, 'Importance': lr_feature_importances})
-    lr_feature_importances_df = lr_feature_importances_df.sort_values('Importance', ascending=False)
-
-    # Gradient Boosting feature importances
-    gb_feature_importances = gb_model.feature_importances_
-    gb_feature_importances_df = pd.DataFrame({'Feature': feature_names, 'Importance': gb_feature_importances})
-    gb_feature_importances_df = gb_feature_importances_df.sort_values('Importance', ascending=False)
-
-    # Naive Bayes permutation importance (n_jobs: deterministic with fixed random_state)
-    result_nb = _REMOVED_permutation_importance(nb_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=1)
-    sorted_idx_nb = result_nb.importances_mean.argsort()[::-1]
-    nb_feature_importances_df = pd.DataFrame({'Feature': feature_names[sorted_idx_nb], 'Importance': result_nb.importances_mean[sorted_idx_nb]})
-
-    # SVM permutation importance
-    result_svm = _REMOVED_permutation_importance(svm_model, X_train, y_train, n_repeats=5, random_state=seed, n_jobs=1)
-    sorted_idx_svm = result_svm.importances_mean.argsort()[::-1]
-    svm_feature_importances_df = pd.DataFrame({'Feature': feature_names[sorted_idx_svm], 'Importance': result_svm.importances_mean[sorted_idx_svm]})
-
-    if plot:
-        # Set standard font family
-        plt.rcParams['font.family'] = 'Arial'  # or 'Arial', 'Times New Roman', etc.
-
-        # Create directory for saving feature importance plots
-        feature_imp_path = os.path.normpath(os.path.join(OUTDIR, 'feature_importance_detailed/'))
-        if not os.path.exists(feature_imp_path):
-            os.makedirs(feature_imp_path)
-
-        # Define enhanced color schemes for each model
-        colors = {
-            'RF': plt.cm.viridis(np.linspace(0.2, 0.8, n)),
-            'LR': plt.cm.plasma(np.linspace(0.2, 0.8, n)),
-            'GB': plt.cm.inferno(np.linspace(0.2, 0.8, n)),
-            'NB': plt.cm.cividis(np.linspace(0.2, 0.8, n)),
-            'SVM': plt.cm.magma(np.linspace(0.2, 0.8, n))
-        }
-
-        # Random Forest Plot
-        fig, ax = plt.subplots(figsize=(20, 10))
-        bars = ax.barh(rf_feature_importances_df['Feature'][:n],
-                      rf_feature_importances_df['Importance'][:n],
-                      color=colors['RF'],
-                      edgecolor='white',
-                      linewidth=0.8,
-                      alpha=0.85)
-
-        # Add gradient effect to bars
-        for i, bar in enumerate(bars):
-            bar.set_facecolor(colors['RF'][i])
-
-        ax.set_xlabel('Importance', fontsize=20, color='#2E2E2E', family='DejaVu Sans')
-        ax.set_title('Random Forest Feature Importances', fontsize=22,
-                    color='#2E2E2E', pad=20, family='DejaVu Sans')
-        ax.tick_params(axis='x', labelsize=18, colors='#2E2E2E')
-        ax.tick_params(axis='y', labelsize=18, colors='#2E2E2E')
-
-        # Enhanced grid styling
-        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.8, color='gray')
-        ax.set_axisbelow(True)
-
-        # Subtle background gradient
-        ax.patch.set_facecolor('#FAFAFA')
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(feature_imp_path, 'RF_detailed_feature_importance.pdf'),
-                   format='pdf', bbox_inches='tight', dpi=300, facecolor='white')
-        plt.show()
-
-        # Logistic Regression Plot
-        fig, ax = plt.subplots(figsize=(20, 10))
-        bars = ax.barh(lr_feature_importances_df['Feature'][:n],
-                      lr_feature_importances_df['Importance'][:n],
-                      color=colors['LR'],
-                      edgecolor='white',
-                      linewidth=0.8,
-                      alpha=0.85)
-
-        for i, bar in enumerate(bars):
-            bar.set_facecolor(colors['LR'][i])
-
-        ax.set_xlabel('Importance', fontsize=18, color='#2E2E2E', family='DejaVu Sans')
-        ax.set_title('Logistic Regression Feature Importances', fontsize=22,
-                    color='#2E2E2E', pad=20, family='DejaVu Sans')
-        ax.tick_params(axis='x', labelsize=16, colors='#2E2E2E')
-        ax.tick_params(axis='y', labelsize=16, colors='#2E2E2E')
-        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.8, color='gray')
-        ax.set_axisbelow(True)
-        ax.patch.set_facecolor('#FAFAFA')
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(feature_imp_path, 'LR_detailed_feature_importance.pdf'),
-                   format='pdf', bbox_inches='tight', dpi=300, facecolor='white')
-        plt.show()
-
-        # Gradient Boosting Plot
-        fig, ax = plt.subplots(figsize=(20, 10))
-        bars = ax.barh(gb_feature_importances_df['Feature'][:n],
-                      gb_feature_importances_df['Importance'][:n],
-                      color=colors['GB'],
-                      edgecolor='white',
-                      linewidth=0.8,
-                      alpha=0.85)
-
-        for i, bar in enumerate(bars):
-            bar.set_facecolor(colors['GB'][i])
-
-        ax.set_xlabel('Importance', fontsize=18, color='#2E2E2E', family='DejaVu Sans')
-        ax.set_title('Gradient Boosting Feature Importances', fontsize=22,
-                    color='#2E2E2E', pad=20, family='DejaVu Sans')
-        ax.tick_params(axis='x', labelsize=16, colors='#2E2E2E')
-        ax.tick_params(axis='y', labelsize=16, colors='#2E2E2E')
-        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.8, color='gray')
-        ax.set_axisbelow(True)
-        ax.patch.set_facecolor('#FAFAFA')
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(feature_imp_path, 'GB_detailed_feature_importance.pdf'),
-                   format='pdf', bbox_inches='tight', dpi=300, facecolor='white')
-        plt.show()
-
-        # Naive Bayes Plot (Enhanced Boxplot)
-        fig, ax = plt.subplots(figsize=(12, 8))
-        bp = ax.boxplot(result_nb.importances[sorted_idx_nb][:n].T,
-                       vert=False,
-                       labels=X_train.columns[sorted_idx_nb][:n],
-                       patch_artist=True,
-                       boxprops=dict(facecolor='#8E44AD', alpha=0.8, linewidth=1.5),
-                       whiskerprops=dict(color='#2E2E2E', linewidth=2),
-                       capprops=dict(color='#2E2E2E', linewidth=2),
-                       medianprops=dict(color='white', linewidth=3),
-                       flierprops=dict(marker='o', markerfacecolor='#E74C3C', markersize=8, alpha=0.8, markeredgecolor='white'))
-
-        ax.set_xlabel('Permutation Importance', fontsize=18, color='#2E2E2E', family='DejaVu Sans')
-        ax.set_title('Naive Bayes Permutation Feature Importance', fontsize=22,
-                    color='#2E2E2E', pad=20, family='DejaVu Sans')
-        ax.tick_params(axis='x', labelsize=16, colors='#2E2E2E')
-        ax.tick_params(axis='y', labelsize=16, colors='#2E2E2E')
-        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.8, color='gray')
-        ax.set_axisbelow(True)
-        ax.patch.set_facecolor('#FAFAFA')
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(feature_imp_path, 'NB_detailed_feature_importance.pdf'),
-                   format='pdf', bbox_inches='tight', dpi=300, facecolor='white')
-        plt.show()
-
-        # SVM Plot (Enhanced Boxplot)
-        fig, ax = plt.subplots(figsize=(12, 8))
-        bp = ax.boxplot(result_svm.importances[sorted_idx_svm][:n].T,
-                       vert=False,
-                       labels=X_train.columns[sorted_idx_svm][:n],
-                       patch_artist=True,
-                       boxprops=dict(facecolor='#E67E22', alpha=0.8, linewidth=1.5),
-                       whiskerprops=dict(color='#2E2E2E', linewidth=2),
-                       capprops=dict(color='#2E2E2E', linewidth=2),
-                       medianprops=dict(color='white', linewidth=3),
-                       flierprops=dict(marker='o', markerfacecolor='#E74C3C', markersize=8, alpha=0.8, markeredgecolor='white'))
-
-        ax.set_xlabel('Permutation Importance', fontsize=18, color='#2E2E2E', family='DejaVu Sans')
-        ax.set_title('SVM Permutation Feature Importance', fontsize=22,
-                    color='#2E2E2E', pad=20, family='DejaVu Sans')
-        ax.tick_params(axis='x', labelsize=16, colors='#2E2E2E')
-        ax.tick_params(axis='y', labelsize=16, colors='#2E2E2E')
-        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.8, color='gray')
-        ax.set_axisbelow(True)
-        ax.patch.set_facecolor('#FAFAFA')
-
-        plt.tight_layout()
-        plt.savefig(os.path.join(feature_imp_path, 'SVM_detailed_feature_importance.pdf'),
-                   format='pdf', bbox_inches='tight', dpi=300, facecolor='white')
-        plt.show()
-
-    return rf_feature_importances_df, lr_feature_importances_df, gb_feature_importances_df, nb_feature_importances_df, svm_feature_importances_df
-
-
 def compute_band_reference(df_pivot_train, freqs_all=FREQS_ALL, floor_mv=ALPHA_REF_FLOOR_MV, channel='HG'):
-    """Per-frequency reference from TRAIN fold only: median of '{f}.0 {channel} (mV) mean'.
+    """Per-frequency reference from TRAIN rows only (no leakage).
 
-    No empty-system sweep exists for experiment 5, so the reference is the train-fold
-    median per band. Computed inside each outer fold from TRAIN rows only (no leakage);
-    the same ref transforms both the train and the held-out fold.
-    Bands with non-finite, non-positive, or sub-floor |median| (HG: empirically 110-190 GHz
-    plus weak 210/220/260/270/280; LG: 100 GHz plus ~290 GHz and everything 300+ GHz)
-    get NaN: no signal lives there, only noise around zero.
+    Median of '{f}.0 {channel} (mV) mean'; sub-floor bands get NaN (dead band: noise only).
     """
     ref = {}
     for f in freqs_all:
@@ -498,13 +287,8 @@ def _row_thickness(df_pivot, thickness_map):
 def apply_alpha_pivoted(df_pivot, ref_hg, ref_lg, freqs_all=FREQS_ALL, thickness_map=THICKNESS_MM, eps=1e-6):
     """Beer-Lambert alpha(f) = -ln(T)/d with T = sample(f)/ref(f), per channel.
 
-    HG/LG means with live refs -> alpha; dead-band means -> exact 0 (anti-leak:
-    a scaled constant would encode 1/d = the label, one thickness per polymer).
-    All std-deviation cols pass through RAW (identical in both arms: std carries
-    polymer signal with no systematic thickness scaling, so dividing it by d
-    would only inject a 1/d code that exists solely in the alpha arm).
-    Column names are preserved so preprocess_data/add_features work unchanged; frames
-    stay separate per norm_mode. 'Sample'/'Day'/'SourceFile' columns unchanged.
+    Dead-band means -> exact 0 (a scaled constant would encode 1/d = the label).
+    Std-deviation cols pass through raw.
     """
     out = df_pivot.copy()
     d = _row_thickness(out, thickness_map)
@@ -533,15 +317,7 @@ def apply_alpha_pivoted(df_pivot, ref_hg, ref_lg, freqs_all=FREQS_ALL, thickness
     return out
 
 def feature_rank(Xtr_df, ytr, seed):
-    """Native-only feature ranks (1 = best): RF consensus + GB + LR mean|coef|.
-
-    RF: bootstrap-10 consensus
-    GB: single-fit 
-    LR: mean |coef_| across classes
-    
-    No permutation importance: NB/SVM have no native importance
-    Ranks are averaged (mean rank)
-    """
+    """Mean rank (1 = best) of RF bootstrap-10 consensus + GB + LR mean|coef|."""
     cols = [str(c) for c in Xtr_df.columns]
     sc = StandardScaler()
     Xs = pd.DataFrame(sc.fit_transform(Xtr_df), columns=cols, index=Xtr_df.index)
@@ -569,14 +345,10 @@ def feature_rank(Xtr_df, ytr, seed):
 
 
 def nested_topK_for_outer(df_outer_tr, seed, K_list, labels, freqs_all, norm):
-    """Nested train-only frequency selection for one outer LODO fold.
+    """Nested train-only selection for one outer LODO fold.
 
-    Inner LOO over the outer-train days: each inner fold ranks frequencies
-    with feature_rank on its inner-train rows only (alpha refs recomputed
-    from inner-train rows only). Single nested order by (top-3 votes desc,
-    mean inner rank asc); top-K slices are therefore nested sets. The outer
-    held-out day is never touched here; the caller trains on all outer-train
-    rows with the frozen sets and evaluates once on the held-out day.
+    Inner LOO over outer-train days (inner-train rows/refs only); the held-out
+    day is never touched. Single nested order: top-3 votes desc, mean rank asc.
     """
     days = sorted(df_outer_tr["Day"].unique().tolist())
     per_inner = []
@@ -611,7 +383,7 @@ def nested_topK_for_outer(df_outer_tr, seed, K_list, labels, freqs_all, norm):
     return topK, ranking, None
 
 def select_topK_for_fold(Xtr_df, ytr, seed, K_list=K_LIST, freqs_all=FREQS_ALL):
-    """ Systematic selection on TRAIN fold only: native RF+GB+LR mean rank. """
+    """Top-K frequency selection on TRAIN rows only (RF+GB+LR mean rank)."""
     _r = feature_rank(Xtr_df, ytr, seed)
     _rows = []
     for _f in freqs_all:
@@ -624,11 +396,7 @@ def select_topK_for_fold(Xtr_df, ytr, seed, K_list=K_LIST, freqs_all=FREQS_ALL):
     return topK, ranking, None
 
 def nested_emergent_sets(df_outer_tr, seed, K_list, labels, freqs_all):
-    """Inner LOO over the 4 outer-train days -> ({K: emergent bands}, audit).
-
-    Rule (fixed in advance): per K, order bands by (inner-count desc, mean inner
-    rank asc), take top-K. Inner selections reuse select_topK_for_fold as-is.
-    """
+    """Inner LOO over outer-train days -> ({K: emergent bands}, audit)."""
     days = sorted(df_outer_tr["Day"].unique().tolist())
     per_inner = []
     for h in days:
@@ -653,11 +421,7 @@ def nested_emergent_sets(df_outer_tr, seed, K_list, labels, freqs_all):
 
 
 def nested_emergent_sets_alpha(df_outer_tr, seed, K_list, labels, freqs_all):
-    """Inner LOO on the alpha path -> ({K: emergent bands}, audit).
-
-    Same rule as baseline version, but each inner-train computes its own
-    alpha refs (train rows only) and selects on alpha-transformed data.
-    """
+    """Inner LOO on alpha-transformed data -> ({K: emergent bands}, audit)."""
     days = sorted(df_outer_tr["Day"].unique().tolist())
     per_inner = []
     for h in days:
@@ -744,11 +508,8 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
             _Xtr = np.hstack((_Xtr, _qd.predict_proba(_Xtr)))
             _Xte = np.hstack((_Xte, _qd.predict_proba(_Xte)))
         if flags["ica"]:
-            # Alpha dead bands are exact-constant cols -> zero singular values ->
-            # inf/NaN in FastICA's default svd whitening (crashed the alpha arm).
-            # Drop them (mask from TRAIN only) and scale components with K:
-            # min(live feats, train classes - 1), so the K sweep stays meaningful
-            # instead of collapsing every K to 2 dims.
+            # Exact-constant dead bands break FastICA whitening: drop them
+            # (TRAIN mask only), components = min(live feats, classes - 1).
             _Atr = np.asarray(_Xtr, dtype=float)
             _Ate = np.asarray(_Xte, dtype=float)
             _live = _Atr.std(axis=0) > 0
@@ -789,10 +550,7 @@ def run_unit(fold, held_day, norm, df_tr, df_te, seed, K_list, labels, freqs_all
             "ref": _ref, "ref_lg": _ref_lg, "sel_time_s": float(_sel_time)}
 
 def apply_pre_sg(df_long, window_length, polyorder):
-    """Temporal Savitzky-Golay denoise of raw LG/HG before windowing.
-    Applied per (Sample, Frequency, SourceFile) group along acquisition order,
-    so no window ever spans a file/day boundary.
-    """
+    """Savitzky-Golay denoise of raw LG/HG per acquisition group, before windowing."""
     if int(window_length) % 2 != 1:
         raise ValueError(f"SG window_length must be odd, got {window_length}")
     if not (int(polyorder) < int(window_length)):
@@ -894,7 +652,7 @@ def build_pivot(notebook_nb_dir, window_s, outdir, pre_sg=False, pre_sg_w=5, pre
     return df_pivot_full
 
 def aggregate_stability(cv_results, topk_by_fold, rankings_by_fold, freqs_all, paper_norms, outdir, tag):
-    """Stability table + universal sets (mirrors the notebook stability cell)."""
+    """Stability table + universal frequency sets."""
     _n_folds_eff = cv_results["fold"].nunique()
     _req = 4 if _n_folds_eff == 5 else _n_folds_eff
     _stab_rows = []
@@ -929,7 +687,7 @@ def aggregate_stability(cv_results, topk_by_fold, rankings_by_fold, freqs_all, p
     return stability_df, universal
 
 def save_selection_chart(cv_results, stability_df, outdir, tag, prefix, K=3):
-    """ Chart (top-K) selection stability (single chart: sets are shared across arms) """
+    """Top-K selection stability chart."""
     for _n in [None]:
         _s3 = stability_df[stability_df["K"] == int(K)].sort_values("freq").drop_duplicates("freq")
         if _s3.empty:
@@ -1093,13 +851,10 @@ def plot_confusion_matrix_pdf(y_true, y_pred, labels, save_path, model_name):
     cax = ax.matshow(conf_matrix, cmap=cmap)
     fig.colorbar(cax)
 
-    # Determine text color based on cell value for better visibility
     for i in range(len(labels)):
         for j in range(len(labels)):
-            # Calculate percentage
             percentage = conf_matrix[i, j] / np.sum(conf_matrix, axis=1)[i] * 100 if np.sum(conf_matrix, axis=1)[i] > 0 else 0
 
-            # Determine text color based on cell darkness
             cell_value = conf_matrix[i, j]
             if cell_value > conf_matrix.max() / 3:
                 text_color = 'white'
@@ -1128,21 +883,16 @@ def plot_confusion_matrix_pdf(y_true, y_pred, labels, save_path, model_name):
     plt.yticks(np.arange(len(labels)), labels, fontweight='bold')
     plt.title('Confusion Matrix', fontweight='bold', fontsize=14)
 
-    # Adjust layout to make room for rotated x labels
     plt.tight_layout()
 
-    # Save the plot if a path is provided
     if save_path:
-        # Create directory if it doesn't exist
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
-        # Create filename
         model_suffix = f"_{model_name}" if model_name else ""
         filename = f"confusion_matrix{model_suffix}.pdf"
         filepath = os.path.join(save_path, filename)
 
-        # Save as PDF
         plt.savefig(filepath, format='pdf', bbox_inches='tight', dpi=300)
         print(f"Confusion matrix saved to: {filepath}")
     else:
@@ -1152,12 +902,7 @@ def plot_confusion_matrix_pdf(y_true, y_pred, labels, save_path, model_name):
 
 def save_confusion_pdfs(cv_results, band_refs, band_refs_lg, df_pivot_full, labels,
                         freqs_all, outdir, tag, prefix, seed, norms):
-    """Pooled confusion per (norm, K) for the best model by 5-fold mean acc.
-
-    K fixed by the loop; model = argmax of raw (unrounded) fold-mean acc,
-    tiebreak by MODELS_ORDER. Predictions are concatenated over all folds
-    (each sample is in exactly one test fold), one plot call per (norm, K).
-    Refit recipe matches run_unit; alpha uses each fold's own train-fold refs."""
+    """Pooled confusion per (norm, K) for the best model by fold-mean acc."""
     _fitters = {
         'RF': lambda: RandomForestClassifier(n_estimators=500, min_samples_leaf=2,
                                              n_jobs=-1, random_state=seed),
@@ -1239,7 +984,6 @@ def main():
         held_by_fold[fold] = int(_held[0])
     # ---- Phase 1: shared nested selection, derived ONCE per outer fold from
     # the alpha arm's outer-train days only (inner LOO, inner-train refs).
-    # The identical frozen sets evaluate both arms (reviewer: same frequencies).
     outer = {}
     for fold in folds_wanted:
         tri, tei = splits[fold]
@@ -1344,8 +1088,7 @@ def _derive_baseline_emergent(fold, df_outer_tr, seed, K_list):
 
 
 def main_nested_shared():
-    """Shared-set mode: baseline-derived emergent bands evaluated identically
-    on both arms (same selected_freqs per fold/K; alpha uses outer-train refs)."""
+    """Shared-set mode: same emergent bands evaluated on both arms."""
     outdir, workers, smoke, seed = OUTDIR, WORKERS, SMOKE, SEED
     os.makedirs(outdir, exist_ok=True)
     K_list = list(K_LIST) if not smoke else [10, 3]
