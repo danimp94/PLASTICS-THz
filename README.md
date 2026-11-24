@@ -133,14 +133,33 @@ This codebase is released under [MIT License](LICENSE).
 
 ### Citation
 
-If you use this code or data in your research, please cite our paper.
+If you use this code or data in your research, please cite [our paper](https://www.sciencedirect.com/science/article/pii/S0142941826003417)[cite: 1]:
+
+```bibtex
+@article{MORENOPARIS2026109424,
+  title   = {Plastic classification using Terahertz spectroscopy and machine learning approaches},
+  author  = {Daniel Moreno-París and Aldo Moreno-Oyervides and Javier Grau-Forner and Raúl Jorge-Anguita and Oscar E. Bonilla-Manrique},
+  journal = {Polymer Testing},
+  volume  = {165},
+  pages   = {109424},
+  year    = {2026},
+  issn    = {0142-9418},
+  doi     = {[https://doi.org/10.1016/j.polymertesting.2026.109424](https://doi.org/10.1016/j.polymertesting.2026.109424)},
+  url     = {[https://www.sciencedirect.com/science/article/pii/S0142941826003417](https://www.sciencedirect.com/science/article/pii/S0142941826003417)}
+} 
+```
 
 ### Usage Terms
 
+This work is licensed under a [Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)](https://creativecommons.org/licenses/by-nc/4.0/).
+
 You are free to:
-- Use the code and data for any purpose
-- Modify and distribute the code
-- Use in commercial applications
+- **Share** — copy and redistribute the code and data in any medium or format
+- **Adapt** — remix, transform, and build upon the code and data
+
+Under the following terms:
+- **Attribution** — You must give appropriate credit, provide a link to the license, and indicate if changes were made (see [Citation](#citation)).
+- **NonCommercial** — You may **not** use the code or data for commercial purposes.
 
 ## Contact
 
